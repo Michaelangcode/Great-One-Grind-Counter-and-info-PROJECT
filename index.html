@@ -3,6 +3,8 @@
 <head>
     <title>My Tool</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
 </head>
 <body>
     <div class="app">
@@ -102,7 +104,66 @@
     </div>
   </div>
 </div>
-</body>
+<div id="updateBanner" style="display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:8px;border:1px solid #d4af37;font-size:13px;z-index:9999;display:flex;gap:10px;align-items:center;">
+  <span>Update available.</span>
+  <button id="updateReloadBtn" style="background:#d4af37;color:#000;border:none;border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer;">Reload</button>
+</div>
+<div id="cookieConsentBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:14px 16px;font-size:13px;z-index:10000;display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;border-top:1px solid #d4af37;">
+  <span style="max-width:600px;">This app uses local device storage to save your progress. See our Privacy Policy for details.</span>
+  <button id="cookieConsentBtn" style="background:#d4af37;color:#000;border:none;border-radius:5px;padding:6px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">Got it</button>
+</div>
+<script>
+(function() {
+  var CONSENT_KEY = 'cookieConsentAccepted';
+  if (!localStorage.getItem(CONSENT_KEY)) {
+    document.getElementById('cookieConsentBanner').style.display = 'flex';
+  }
+  document.getElementById('cookieConsentBtn').addEventListener('click', function() {
+    localStorage.setItem(CONSENT_KEY, 'true');
+    document.getElementById('cookieConsentBanner').style.display = 'none';
+  });
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+if (reg.waiting) {
+        document.getElementById('updateBanner').style.display = 'flex';
+      }
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            document.getElementById('updateBanner').style.display = 'flex';
+          }
+        });
+      });
+    });
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+    document.getElementById('updateReloadBtn').addEventListener('click', () => {
+      navigator.serviceWorker.getRegistration().then((reg) => {
+        if (!reg) return;
+        if (reg.waiting) {
+          reg.waiting.postMessage('SKIP_WAITING');
+        } else if (reg.installing) {
+          reg.installing.addEventListener('statechange', function fn(e) {
+            if (e.target.state === 'installed') {
+              e.target.postMessage('SKIP_WAITING');
+              e.target.removeEventListener('statechange', fn);
+            }
+          });
+        }
+      });
+    });
+  });
+}
+</script>
 <!-- Session Goal: number input modal -->
 <div id="sgInputModal" class="modal hidden">
   <div class="modal-box" style="max-width:280px; text-align:center;">
@@ -130,4 +191,5 @@
 </div>
 
 <script src="script.js"></script>
+</body>
 </html>   
