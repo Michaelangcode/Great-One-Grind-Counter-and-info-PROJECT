@@ -1,12 +1,12 @@
-const CACHE_NAME = 'grind-tracker-v2';
+const CACHE_NAME = 'grind-tracker-v3';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './script.js',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './icon192.png',
+  './icon512.png'
 ];
 
 self.addEventListener('install', (e) => {
