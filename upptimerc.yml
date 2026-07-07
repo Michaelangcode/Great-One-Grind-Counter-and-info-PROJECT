@@ -1,0 +1,10 @@
+owner: Michaelangcode
+repo: Great-One-Grind-Counter-and-info-PROJECT
+
+sites:
+  - name: Great One Grind Counter
+    url: https://advancedgrindcounter.netlify.app
+
+status-website:
+  cname: ""
+  name: Great One Grind Counter Status

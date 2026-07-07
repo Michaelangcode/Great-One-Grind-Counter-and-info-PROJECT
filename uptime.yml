@@ -1,0 +1,17 @@
+name: Uptime CI
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: upptime/uptime-monitor@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
