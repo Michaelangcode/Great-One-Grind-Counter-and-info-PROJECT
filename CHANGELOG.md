@@ -3,6 +3,9 @@
 All notable changes to Grind Tracker will be documented here.
 
 ## [Unreleased]
+### Phase 2.5 — Closed Beta Prep
+- Updated Privacy Policy to disclose beta tester data collection (name, email, invite code, feedback) and Google Forms/Sheets as processor, ahead of beta rollout
+
 ### Phase 2 — Netlify Hosting
 - Added cookie/local-storage consent banner
 - (Upptime status page — pending)
