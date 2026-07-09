@@ -8,6 +8,21 @@
     <meta name="theme-color" content="#000000">
 </head>
 <body>
+    <div id="betaGate" class="modal" style="z-index:99999;">
+      <div class="modal-box" style="text-align:left;">
+        <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Beta Access</h3>
+        <p>Enter your invite code to continue.</p>
+        <input type="text" id="betaCodeInput" placeholder="Invite code" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-size:13px;">
+        <label class="del-two-step-label" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:16px;color:var(--muted);text-align:left;">
+          <input type="checkbox" id="betaNdaCheck">
+          <span>I agree not to share this app, its contents, or beta features with anyone outside this program.</span>
+        </label>
+        <div id="betaGateError" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;"></div>
+        <div class="modal-actions">
+          <button id="betaGateSubmit" class="confirm-go">Enter</button>
+        </div>
+      </div>
+    </div>
     <div class="app">
   <div class="wrap" id="appRoot">
     <div class="loading-note">Loading your grind log…</div>
@@ -192,5 +207,71 @@ if (reg.waiting) {
 </div>
 
 <script src="script.js"></script>
+<script>
+(function() {
+  var GATE_KEY = 'betaAccessGranted';
+  var FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdFzU-OODPP19-cGDSeYX8j3J1P1yHGpek75x5hliP2w9sWNQ/formResponse';
+  var CODE_FIELD = 'entry.503729137';
+
+  var VALID_HASHES = [
+    "f240786c3787a6ef7fc7b0f0bc72aa7128cacdfa769dc50cc99a13b10bd2ce28",
+    "96409405919b7bd3f77c26d3e80339b54e13b1c09a740e64aaf63308c65dc0a7",
+    "db5adf75185cfa6f2b6067946607c633ae1493ad248be702febb8bd0619f67ba",
+    "511fd1f6baee6bca34ee2de06dcb3e8293425a8bd96e3686797ba7a287a11a58",
+    "9e4d2213cb1ddc28b1f6546cfee1f2d2533cce920d0af35fb1d07c2f2d509514",
+    "0d5469ac4167b65886a374e799240062117ccff9f49087d709cda4a72531d818",
+    "2b968156bcd349d45d77d6384feed9f6533e76108ff6773fd692235112c1e7fd",
+    "f6aa62872843c3d54212caa54d95f0e24c4384e819f49375911e663209a8b5a7",
+    "a79b297d5c4e4f4757b7ca0b4c8aa80a657dec132d0301809d459e71d145f0da",
+    "074aa11530010bbf06270821c8b101147f6d3f325bde87d2c3966356a4ad7baf",
+    "f0db5aff8d43c499420fe6bc21a9a4393edbadb76a67c1ebecf47bcd716e56b0",
+    "6edabf455ec362b7203a10bf07206afacc010d681f913f6424a997822b1027dd",
+    "42f9ac373da6ef585177b724fa9c6f816143643ce83e9562033da7a5b1ad87f7",
+    "7a330247e844d9d78303e6d88c06e7af02eabcf5bcee00629077d18cc377b46d",
+    "8607df80287f5f4292df100577d3228f9e745484175d453cd3562edd3e3aa601",
+    "716140780c56263a69d28f6f2a085c021334506e0ad8b6e15c268e729cb0dc39",
+    "66eab3648d23eacb88289bf9e6d80c7c31deae9d2f31f021190470f352030ca5",
+    "bd705cf7962b92ac6aee4f838cb0d5f8cabce31ef1efe1d7c42ef36b363bf109",
+    "25fb5ed95b9fa473e13b940a3bc1c24e961817a7b5312199e352e5414cfc0b0a",
+    "c0699739674c2a117ed153d13bf7cef4880e97600f4872626ac2d5daabec8a5c"
+  ];
+
+  var gate = document.getElementById('betaGate');
+  if (localStorage.getItem(GATE_KEY) === 'true') {
+    gate.style.display = 'none';
+    return;
+  }
+
+  async function sha256(text) {
+    var enc = new TextEncoder().encode(text);
+    var buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  }
+
+  document.getElementById('betaGateSubmit').addEventListener('click', async function() {
+    var code = document.getElementById('betaCodeInput').value.trim();
+    var agreed = document.getElementById('betaNdaCheck').checked;
+    var errorBox = document.getElementById('betaGateError');
+
+    if (!code || !agreed) {
+      errorBox.textContent = 'Enter a code and agree to the terms.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    var hash = await sha256(code);
+    if (VALID_HASHES.indexOf(hash) !== -1) {
+      localStorage.setItem(GATE_KEY, 'true');
+      gate.style.display = 'none';
+      var body = new URLSearchParams();
+      body.append(CODE_FIELD, code);
+      fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: body }).catch(function(){});
+    } else {
+      errorBox.textContent = 'Invalid code. Please try again.';
+      errorBox.style.display = 'block';
+    }
+  });
+})();
+</script>
 </body>
 </html>   
