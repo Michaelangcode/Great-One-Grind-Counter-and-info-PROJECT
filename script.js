@@ -803,7 +803,7 @@
       if(rEl)  rEl.textContent  = g.rareCount||0;
       if(dBreak)   dBreak.textContent   = `→ also adds to Total Kills`;
       if(tBreak)   tBreak.textContent   = `→ also adds to Total Kills`;
-      if(totBreak){ totBreak.textContent = totBreak; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3||0} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       return;
     }
 
@@ -833,12 +833,12 @@
     if(hasD2){
       if(mlBreak)  mlBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`;
       if(mwBreak)  mwBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`;
-      if(totBreak){ totBreak.textContent = totBreak; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally)    tally.textContent    = `Diamonds: ${totalDiamond(g)} (${d3label}: ${g.diamondLvl3} · ${d2label}: ${g.diamondLvl2})`;
     } else {
       if(mlBreak)  mlBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`;
       if(mwBreak)  mwBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`;
-      if(totBreak){ totBreak.textContent = totBreak; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally)    tally.textContent    = `Diamonds: ${g.diamondLvl3}`;
     }
 
@@ -2576,9 +2576,9 @@
       const dBreak = document.getElementById('basicDiamondBreakdown');
       const tBreak = document.getElementById('basicTrollBreakdown');
       const totBreak = document.getElementById('basicTotalBreakdown');
-      if(dBreak){ dBreak.textContent = dBreak; dBreak.dataset.tip = dBreak.textContent; }
-      if(tBreak){ tBreak.textContent = tBreak; tBreak.dataset.tip = tBreak.textContent; }
-      if(totBreak){ totBreak.textContent = totBreak; totBreak.dataset.tip = totBreak.textContent; }
+      if(dBreak){ dBreak.textContent = `→ also adds to Total Kills`; dBreak.dataset.tip = dBreak.textContent; }
+      if(tBreak){ tBreak.textContent = `→ also adds to Total Kills`; tBreak.dataset.tip = tBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3||0} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       const tally = document.getElementById('diamondTally');
       if(tally) tally.textContent = `Diamonds: ${g.diamondLvl3||0}`;
       const noteEl = document.getElementById('counterNote');
@@ -2617,14 +2617,14 @@
     const tally = document.getElementById('diamondTally');
 
     if(hasD2){
-      if(mlBreak){ mlBreak.textContent = mlBreak; mlBreak.dataset.tip = mlBreak.textContent; }
-      if(mwBreak){ mwBreak.textContent = mwBreak; mwBreak.dataset.tip = mwBreak.textContent; }
-      if(totBreak){ totBreak.textContent = totBreak; totBreak.dataset.tip = totBreak.textContent; }
+      if(mlBreak){ mlBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`; mlBreak.dataset.tip = mlBreak.textContent; }
+      if(mwBreak){ mwBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`; mwBreak.dataset.tip = mwBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally) tally.textContent = `Diamonds: ${totalDiamond(g)} (${d3label}: ${g.diamondLvl3} · ${d2label}: ${g.diamondLvl2})`;
     } else {
-      if(mlBreak){ mlBreak.textContent = mlBreak; mlBreak.dataset.tip = mlBreak.textContent; }
-      if(mwBreak){ mwBreak.textContent = mwBreak; mwBreak.dataset.tip = mwBreak.textContent; }
-      if(totBreak){ totBreak.textContent = totBreak; totBreak.dataset.tip = totBreak.textContent; }
+      if(mlBreak){ mlBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`; mlBreak.dataset.tip = mlBreak.textContent; }
+      if(mwBreak){ mwBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`; mwBreak.dataset.tip = mwBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally) tally.textContent = `Diamonds: ${g.diamondLvl3}`;
     }
 
