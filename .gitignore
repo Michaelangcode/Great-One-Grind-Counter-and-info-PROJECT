@@ -2,7 +2,9 @@
 Thumbs.db
 node_modules/
 .env
-*.log.netlify/
+*.log
+.netlify/
 DEPLOYMENT_GUIDE.md
 monetization-plan.md
 growth-and-beta-plan.md
+*.docx
