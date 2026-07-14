@@ -832,8 +832,6 @@
       <span class="go-stat-sep">·</span>
       <span class="go-stat-item"><span class="go-counter-lbl">Max-Lvl</span> <span class="go-counter-val">${totalMaxLevel(g)}</span></span>
       <span class="go-stat-sep">·</span>
-      <span class="go-stat-item"><span class="go-counter-lbl">Max-Wt</span> <span class="go-counter-val">${totalMaxWeight(g)}</span></span>
-      <span class="go-stat-sep">·</span>
       <span class="go-stat-item go-counter-total"><span class="go-counter-lbl">Total</span> <span class="go-counter-val">${totalKillsOf(g)}</span></span>
       <span class="go-stat-sep">·</span>
       <span class="go-stat-item go-counter-rate"><span class="go-counter-lbl">Avg kills/dia</span> <span class="go-counter-val">${totalDiamond(g) === 0 ? '—' : (totalKillsOf(g)/totalDiamond(g)).toFixed(2)}</span></span>
@@ -949,8 +947,6 @@
                   <span class="go-stat-item"><span class="go-counter-lbl">Dia</span> <span class="go-counter-val">${totalDiamond(g)}</span></span>
                   <span class="go-stat-sep">·</span>
                   <span class="go-stat-item"><span class="go-counter-lbl">Max-Lvl</span> <span class="go-counter-val">${totalMaxLevel(g)}</span></span>
-                  <span class="go-stat-sep">·</span>
-                  <span class="go-stat-item"><span class="go-counter-lbl">Max-Wt</span> <span class="go-counter-val">${totalMaxWeight(g)}</span></span>
                   <span class="go-stat-sep">·</span>
                   <span class="go-stat-item go-counter-total"><span class="go-counter-lbl">Total</span> <span class="go-counter-val">${totalKillsOf(g)}</span></span>
                   <span class="go-stat-sep">·</span>
@@ -1604,7 +1600,7 @@
             <div class="wizard-mode-tagline" style="color:var(--diamond3); font-size:12px; margin-bottom:8px;">Best for extremely accurate accounting. Creates usable information for finding trends and averages.</div>
             <ul class="wizard-mode-list">
               <li>Tracks diamonds by level (e.g. Diamond Lvl 3 vs Lvl 2)</li>
-              <li>Tracks max-level and max-weight kills separately</li>
+              <li>Tracks trolled max-level kills separately</li>
               <li>Full kill breakdown and cascading totals</li>
               <li>Results are saved to All Grinds Summary for stats and trends</li>
             </ul>
@@ -1716,8 +1712,8 @@
           <div id="chartArea"></div>
         </section>
         <section>
-          <h2>Correlation With Total Kills Needed</h2>
-          <p class="corr-caveat">Every logged grind already ended in a Great One, so this isn't "chance of a GO spawning" — it's whether more of a given kill type lines up with needing fewer (or more) total kills to get there. Best read with 5+ grinds logged.</p>
+          <h2>Correlation With the Rest of the Grind</h2>
+          <p class="corr-caveat">Every logged grind already ended in a Great One, so this isn't "chance of a GO spawning" — it's whether getting more of a kill type lines up with needing fewer (or more) of everything else in that same grind. Best read with 5+ grinds logged.</p>
           <div class="view-toggle" id="corrViewToggle">
             <button class="toggle-btn active" data-view="scatter">Scatter Plot</button>
             <button class="toggle-btn" data-view="simple">Simple % Bar</button>
@@ -1747,7 +1743,7 @@
         <section>
           <h2>How to Use This Tool</h2>
           <p class="info-text">This tool is an easy way to keep track of your grind at a higher level &mdash; instead of trying to remember exact numbers in your head while you hunt, you just tap a button each time you take a relevant kill, and the tool keeps the running totals for you.</p>
-          <p class="info-text" style="margin-top:10px;">That info is then taken and used to help figure out whether a Great One spawn is dependent on certain variables &mdash; specifically, whether killing more diamond, max-level, or max-weight est animals lines up with needing fewer (or more) total kills before a Great One shows up.</p>
+          <p class="info-text" style="margin-top:10px;">That info is then taken and used to help figure out whether a Great One spawn is dependent on certain variables &mdash; specifically, whether killing more diamonds or trolled max-level animals lines up with needing fewer (or more) of everything else in that same grind.</p>
           <p class="info-note">The accuracy of what this tool tells you is only as good as the accuracy of what you put into it. If a kill is miscounted or miscategorized, the averages and correlations built from it will be off too.</p>
         </section>
 
@@ -1763,18 +1759,17 @@
           <p class="info-text" style="margin-top:10px;">If you play on PC, you can also assign keyboard keys to any counter using the <strong>Sync Key</strong> button at the bottom of each counter card. Once set, pressing that key will increment the counter without touching the screen.</p>
 
           <h3 class="how-it-works-subhead">Advanced counter: what each button counts</h3>
-          <p class="info-text">The Advanced counter has several individual buttons, each tracking a specific tier of kill. Here's how they relate to each other:</p>
+          <p class="info-text">The Advanced counter has a few individual buttons, each tracking a specific tier of kill. Here's how they relate to each other:</p>
           <ul class="how-it-works-list">
             <li><strong>Diamond (max level)</strong> &mdash; The highest diamond level for the species (e.g. Diamond Lvl 3, Lvl 5, or Lvl 9). Tap this every time you kill a max level diamond.</li>
             <li><strong>Diamond (lower level)</strong> &mdash; Only available for species with a max level below 9. This is a diamond one level below the top (e.g. Diamond Lvl 2 or Lvl 4). Tap this for those kills.</li>
-            <li><strong>Max-Level</strong> &mdash; A max-level animal. Only tap this for max-level kills that trolled &mdash; info of max level diamonds are automatically counted (and added to this counter) from additions to <em>their</em> counter.</li>
-            <li><strong>Max-Weight Est</strong> &mdash; An animal that reached max weight est but did not reach max level. Only tap this for max-weight-est kills that didn't already qualify as anything above.</li>
-            <li><strong>Total Kills</strong> &mdash; Any other kill that doesn't fit the categories above (all other kills). Only tap for kills not already counted.</li>
+            <li><strong>Trolls</strong> &mdash; A max-level animal that didn't make diamond. Only tap this for trolled kills; your top-tier Diamond count is combined with Trolls automatically wherever a "Max-Level" figure is shown elsewhere (like All Grinds Summary), so you don't need to track that combination yourself.</li>
+            <li><strong>Total Kills</strong> &mdash; Any other kill that doesn't fit the categories above. Only tap for kills not already counted.</li>
           </ul>
 
           <h3 class="how-it-works-subhead">Cascading totals</h3>
-          <p class="info-text">Each kill is only ever entered once &mdash; into its own button. The counter automatically takes into account whether an animal added to a certain counter should also add to the total of another counter (if the animal matches attributes recorded in another counter). For example, a Max-Level diamond is always a Diamond, a Max-Level, a Max-Weight Est, and counts as a Kill. Therefore, when the "Max-Level Diamond" counter receives +1, the "Max-Level" counter, "Max-Weight Est" counter, and "Total Kills" counter automatically receive a +1 to their total as well.</p>
-          <p class="info-text" style="margin-top:10px;">For example: if you log 5 max level diamonds, 2 lower level diamonds, 3 trolls, and 1 max-weight est &mdash; the Max-Level display shows <strong>8</strong> (5+3), Max-Weight Est shows <strong>11</strong> (5+2+3+1), and Total Kills shows <strong>11</strong> (5+2+3+1 + any "other" kills added via the Total button).</p>
+          <p class="info-text">Each kill is only ever entered once &mdash; into its own button. Diamond Lvl 3/5/9, Diamond Lvl 2/4, and Trolls all add straight to Total Kills; nothing else cascades between the buttons on the counter itself.</p>
+          <p class="info-text" style="margin-top:10px;">For example: if you log 5 top-tier diamonds, 2 lower-tier diamonds, 3 trolls, and 1 other kill, Total Kills shows <strong>11</strong> (5+2+3+1).</p>
 
           <h3 class="how-it-works-subhead">Basic counter</h3>
           <p class="info-text">The Basic counter is a simpler alternative. Instead of separate tiers, it has just three buttons: <strong>Diamond</strong> (all diamonds combined), <strong>Troll</strong> (max-level kills that didn't make diamond), and <strong>Total Kills</strong> (all other kills). The total displayed is the sum of all three.</p>
@@ -1796,7 +1791,7 @@
           <h2>Analytics</h2>
           <p class="info-text">Once you have at least one Advanced-mode grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. (Analytics only pull from grinds that are both logged and on Advanced mode &mdash; Basic-mode grinds skip this since they don't track the detailed breakdown it needs.)</p>
           <p class="info-text" style="margin-top:10px;">It shows an overview of averages &mdash; kills, diamonds, diamond rate, and more &mdash; across all your grinds, plus a trend chart showing how your kill counts have moved over time.</p>
-          <p class="info-text" style="margin-top:10px;">With 2+ Advanced grinds logged, the <strong>Correlation</strong> section looks at whether higher counts of a particular kill type (diamonds, max-levels, max-weights est) tend to line up with needing fewer kills to get a Great One. More grinds logged = more reliable results. Keep in mind that all information produced is speculative, and is NOT confirmed by the game developers.</p>
+          <p class="info-text" style="margin-top:10px;">With 2+ Advanced grinds logged, the <strong>Correlation</strong> section looks at whether higher counts of diamonds or max-level (troll) kills tend to line up with needing fewer of everything else in that same grind. More grinds logged = more reliable results. Keep in mind that all information produced is speculative, and is NOT confirmed by the game developers.</p>
           <p class="info-text" style="margin-top:10px;"><strong>Grind Comparison</strong> lets you compare same-species grinds side-by-side across different maps, and <strong>Grinds by Species</strong> gives a full breakdown of how many grinds (open or completed) you have per species.</p>
         </section>
       </div>
@@ -1909,7 +1904,7 @@
           <ul class="how-it-works-list">
             <li>An overview of averages &mdash; kills, diamonds, diamond rate, etc &mdash; across all your grinds.</li>
             <li>A trend bar showing whether certain harvest types are trending up or down over time.</li>
-            <li>A look at whether specific harvest types (diamond rank, max level, max weight) correlate with faster or slower Great One spawns (please keep in mind all produced information on Great One spawns is speculative and NOT confirmed by developers of the game).</li>
+            <li>A look at whether specific harvest types (diamond rank, max level) correlate with getting a Great One faster or slower (please keep in mind all produced information on Great One spawns is speculative and NOT confirmed by developers of the game).</li>
             <li>Side-by-side comparison of the same-species grinds across different maps.</li>
             <li>A full breakdown of how many grinds (logged or open) you have per species.</li>
           </ul>
@@ -2685,7 +2680,6 @@
       const n = completed.length || 1;
       const sumDiamond = completed.reduce((s,e)=>s+totalDiamond(e),0);
       const sumL = completed.reduce((s,e)=>s+totalMaxLevel(e),0);
-      const sumW = completed.reduce((s,e)=>s+totalMaxWeight(e),0);
       const sumT = completed.reduce((s,e)=>s+totalKillsOf(e),0);
       grid.innerHTML = `
         <div class="stat-box"><div class="stat-num">${totalAll}</div><div class="stat-lbl">Total grinds (all time)</div></div>
@@ -2694,7 +2688,6 @@
         ${completed.length > 0 ? `
         <div class="stat-box diamond3"><div class="stat-num">${(sumDiamond/n).toFixed(1)}</div><div class="stat-lbl">Avg diamonds / grind</div></div>
         <div class="stat-box antler"><div class="stat-num">${(sumL/n).toFixed(1)}</div><div class="stat-lbl">Avg max-level / grind</div></div>
-        <div class="stat-box weight"><div class="stat-num">${(sumW/n).toFixed(1)}</div><div class="stat-lbl">Avg max-weight / grind</div></div>
         <div class="stat-box total"><div class="stat-num">${(sumT/n).toFixed(1)}</div><div class="stat-lbl">Avg total kills / grind</div></div>
         <div class="stat-box"><div class="stat-num">${sumDiamond === 0 ? '—' : (sumT/sumDiamond).toFixed(2)}</div><div class="stat-lbl">Avg kills / diamond (completed)</div></div>
         ` : ''}
@@ -2789,7 +2782,6 @@
       const metrics = [
         { key:'diamond', label:'Avg kills / Diamond', color:'var(--diamond3)' },
         { key:'maxlevel', label:'Avg kills / Max-Level', color:'var(--antler)' },
-        { key:'maxweight', label:'Avg kills / Max-Weight', color:'var(--weight)' },
         { key:'total', label:'Avg kills / GO Spawn', color:'var(--blaze)' },
       ];
 
@@ -2798,14 +2790,12 @@
         const n = gs.length || 1;
         const sumD = gs.reduce((s,g)=>s+totalDiamond(g),0);
         const sumL = gs.reduce((s,g)=>s+totalMaxLevel(g),0);
-        const sumW = gs.reduce((s,g)=>s+totalMaxWeight(g),0);
         const sumT = gs.reduce((s,g)=>s+totalKillsOf(g),0);
         return {
           map,
           grinds: gs.length,
           diamond: sumD===0 ? 0 : sumT/sumD,
           maxlevel: sumL===0 ? 0 : sumT/sumL,
-          maxweight: sumW===0 ? 0 : sumT/sumW,
           total: sumT/n,
         };
       });
@@ -2982,17 +2972,17 @@
       return;
     }
     const n = completed.length;
-    const vals = completed.flatMap(e => [totalDiamond(e), totalMaxLevel(e), totalMaxWeight(e)]);
+    const vals = completed.flatMap(e => [totalDiamond(e), totalMaxLevel(e)]);
     const maxVal = Math.max(1, ...vals);
     const barW=9, gap=3, groupGap=18;
-    const groupW = barW*3 + gap*2;
+    const groupW = barW*2 + gap;
     const chartH = 170;
     const totalW = Math.max(340, n*(groupW+groupGap));
     let bars = '';
     completed.forEach((e,i) => {
-      const dia=totalDiamond(e), l=totalMaxLevel(e), w=totalMaxWeight(e);
+      const dia=totalDiamond(e), l=totalMaxLevel(e);
       const x = i*(groupW+groupGap)+10;
-      const series = [{v:dia,color:'var(--diamond3)'},{v:l,color:'var(--antler)'},{v:w,color:'var(--weight)'}];
+      const series = [{v:dia,color:'var(--diamond3)'},{v:l,color:'var(--antler)'}];
       series.forEach((s, si) => {
         const h = (s.v/maxVal)*(chartH-26);
         const bx = x + si*(barW+gap);
@@ -3007,7 +2997,6 @@
         <div class="legend">
           <span><span class="swatch diamond3"></span>Diamonds (total)</span>
           <span><span class="swatch antler"></span>Max-level (total)</span>
-          <span><span class="swatch weight"></span>Max-weight (total)</span>
         </div>
       </div>
     `;
@@ -3023,25 +3012,23 @@
     }
     const diaXs = completed.map(e=>totalDiamond(e));
     const lXs = completed.map(e=>totalMaxLevel(e));
-    const wXs = completed.map(e=>totalMaxWeight(e));
-    const totalYs = completed.map(e=>totalKillsOf(e));
-    const rDia = pearson(diaXs, totalYs), rL = pearson(lXs, totalYs), rW = pearson(wXs, totalYs);
-    const visual = (xs, r, color, xLabel) => corrViewMode === 'simple' ? buildSimpleBar(r, color) : buildScatterSVG(xs, totalYs, color, xLabel);
+    // Correlate each category against the REST of the grind's kills (Total minus that category),
+    // not against Total itself — Total is partly built from these categories, so testing against
+    // Total directly is structurally biased toward a positive result no matter what.
+    const diaZs = completed.map(e=>totalKillsOf(e) - totalDiamond(e));
+    const lZs = completed.map(e=>totalKillsOf(e) - totalMaxLevel(e));
+    const rDia = pearson(diaXs, diaZs), rL = pearson(lXs, lZs);
+    const visual = (xs, ys, r, color, xLabel) => corrViewMode === 'simple' ? buildSimpleBar(r, color) : buildScatterSVG(xs, ys, color, xLabel);
     container.innerHTML = `
       <div class="corr-card">
-        <div class="corr-title" style="color:var(--diamond3)">Diamonds vs Total Kills</div>
-        ${visual(diaXs, rDia, 'var(--diamond3)', 'diamond kills →')}
+        <div class="corr-title" style="color:var(--diamond3)">Diamonds vs Rest of Grind</div>
+        ${visual(diaXs, diaZs, rDia, 'var(--diamond3)', 'diamond kills →')}
         <div class="corr-r">${interpretR(rDia)}</div>
       </div>
       <div class="corr-card">
-        <div class="corr-title" style="color:var(--antler)">Max-Level vs Total Kills</div>
-        ${visual(lXs, rL, 'var(--antler)', 'max-level kills →')}
+        <div class="corr-title" style="color:var(--antler)">Max-Level vs Rest of Grind</div>
+        ${visual(lXs, lZs, rL, 'var(--antler)', 'max-level kills →')}
         <div class="corr-r">${interpretR(rL)}</div>
-      </div>
-      <div class="corr-card">
-        <div class="corr-title" style="color:var(--weight)">Max-Weight vs Total Kills</div>
-        ${visual(wXs, rW, 'var(--weight)', 'max-weight kills →')}
-        <div class="corr-r">${interpretR(rW)}</div>
       </div>
     `;
   }
@@ -3072,7 +3059,7 @@
 
   function exportCsv(){
     const completed = grinds.filter(g => g.loggedAt);
-    const cols = ['Name','Species','Map','Platform','Counter Mode','Diamonds','Max-Level','Max-Weight','Total Kills','Avg Kills/Diamond','Rare Furs','Date Logged'];
+    const cols = ['Name','Species','Map','Platform','Counter Mode','Diamonds','Max-Level','Total Kills','Avg Kills/Diamond','Rare Furs','Date Logged'];
     const escape = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
     const rows = completed.map(g => {
       const dia = totalDiamond(g);
@@ -3083,7 +3070,7 @@
         g.map || '',
         g.platform || '',
         g.counterMode || 'advanced',
-        dia, totalMaxLevel(g), totalMaxWeight(g), tk,
+        dia, totalMaxLevel(g), tk,
         dia > 0 ? (tk / dia).toFixed(2) : '—',
         g.rareCount || 0,
         g.loggedAt ? new Date(g.loggedAt).toLocaleDateString() : ''
