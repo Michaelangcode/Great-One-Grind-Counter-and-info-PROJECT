@@ -147,7 +147,8 @@
   // diamondLvl2 = lower diamond (Lv2/Lv4/Lv8) — does NOT count toward max-level
   function totalMaxLevel(c){ return (c.diamondLvl3||0) + (c.maxLevelOnly||0); }
   function totalMaxWeight(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0) + (c.maxLevelOnly||0) + (c.maxWeightOnly||0); }
-  function totalKillsOf(c){ return totalMaxWeight(c) + (c.other||0); }
+  // Max-Weight Est is no longer tracked by the Advanced counter (removed from UI); Total Kills no longer includes it going forward.
+  function totalKillsOf(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0) + (c.maxLevelOnly||0) + (c.other||0); }
 
   function grindNumberForCombo(species, map, unlistedName){
     return grinds.filter(g => {
@@ -675,7 +676,7 @@
     const hasD2 = ml !== 9;
     const d2Card = hasD2 ? `
       <div class="counter-card diamond2">
-        <div class="card-top"><span class="card-icon" style="color:var(--diamond2)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d2Label.replace("Diamond ","")}</span></span><span class="card-hint-corner" data-tip="Adds to Max-Weight &amp; Total Kills only — does NOT add to Max-Level.">→ adds to Max-Weight &amp; Total only</span></div>
+        <div class="card-top"><span class="card-icon" style="color:var(--diamond2)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d2Label.replace("Diamond ","")}</span></span></div>
         <div class="card-sub">this grind</div>
         <div class="counter-controls">
           <button class="ctrl-btn minus" data-target="diamondLvl2" aria-label="Subtract">&minus;</button>
@@ -687,11 +688,10 @@
       </div>` : '';
 
     return `
-      <p class="link-note" id="ic-${grindId}-counterNote"></p>
       <p class="diamond-tally" id="ic-${grindId}-diamondTally"></p>
       <section class="counters">
         <div class="counter-card diamond3">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d3Label.replace("Diamond ","")}</span></span><span class="card-hint-corner" data-tip="Adds to Max-Level, Max-Weight &amp; Total Kills automatically — only tap this counter once per kill.">→ adds to Max-Level, Max-Weight &amp; Total</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d3Label.replace("Diamond ","")}</span></span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="diamondLvl3" aria-label="Subtract">&minus;</button>
@@ -703,26 +703,15 @@
         </div>
         ${d2Card}
         <div class="counter-card antler">
-          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Max-Level</span><span class="card-hint-corner" data-tip="Adds to Max-Weight &amp; Total Kills — only tap this for max-level kills that did NOT make diamond.">→ adds to Max-Weight &amp; Total</span></div>
-          <div class="card-sub">total this grind</div>
+          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
+          <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract">&minus;</button>
             <div class="count-display" id="ic-${grindId}-maxLevelCount">0</div>
             <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add">+</button>
           </div>
           <div class="breakdown" id="ic-${grindId}-maxLevelBreakdown"></div>
-          ${keybindFooter('maxLevelOnly', 'Max-Level')}
-        </div>
-        <div class="counter-card weight">
-          <div class="card-top"><span class="card-icon" style="color:var(--weight)">${weightIcon}</span><span class="card-label">Max-Weight</span><span class="card-hint-corner" data-tip="Adds to Total Kills only — only tap this for max-weight kills that are NOT max-level and NOT diamond.">→ adds to Total only</span></div>
-          <div class="card-sub">total this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="maxWeightOnly" aria-label="Subtract">&minus;</button>
-            <div class="count-display" id="ic-${grindId}-maxWeightCount">0</div>
-            <button class="ctrl-btn plus" data-target="maxWeightOnly" aria-label="Add">+</button>
-          </div>
-          <div class="breakdown" id="ic-${grindId}-maxWeightBreakdown"></div>
-          ${keybindFooter('maxWeightOnly', 'Max-Weight')}
+          ${keybindFooter('maxLevelOnly', 'Trolls')}
         </div>
         ${hasD2 ? `
         <div class="total-rare-row">
@@ -814,38 +803,26 @@
     const d3El = document.getElementById(pfx+'diamondLvl3Count');
     const d2El = document.getElementById(pfx+'diamondLvl2Count');
     const lEl  = document.getElementById(pfx+'maxLevelCount');
-    const wEl  = document.getElementById(pfx+'maxWeightCount');
     const tEl  = document.getElementById(pfx+'totalCount');
     const rEl  = document.getElementById(pfx+'rareCount');
     const mlBreak  = document.getElementById(pfx+'maxLevelBreakdown');
-    const mwBreak  = document.getElementById(pfx+'maxWeightBreakdown');
     const totBreak = document.getElementById(pfx+'totalBreakdown');
     const tally    = document.getElementById(pfx+'diamondTally');
-    const noteEl   = document.getElementById(pfx+'counterNote');
 
     if(d3El) d3El.textContent = g.diamondLvl3;
     if(d2El) d2El.textContent = g.diamondLvl2;
-    if(lEl)  lEl.textContent  = totalMaxLevel(g);
-    if(wEl)  wEl.textContent  = totalMaxWeight(g);
+    if(lEl)  lEl.textContent  = g.maxLevelOnly||0;
     if(tEl)  tEl.textContent  = totalKillsOf(g);
     if(rEl)  rEl.textContent  = g.rareCount||0;
 
+    if(mlBreak){ mlBreak.textContent = `→ also adds to Total Kills`; mlBreak.dataset.tip = mlBreak.textContent; }
+
     if(hasD2){
-      if(mlBreak)  mlBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`;
-      if(mwBreak)  mwBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`;
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally)    tally.textContent    = `Diamonds: ${totalDiamond(g)} (${d3label}: ${g.diamondLvl3} · ${d2label}: ${g.diamondLvl2})`;
     } else {
-      if(mlBreak)  mlBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`;
-      if(mwBreak)  mwBreak.textContent  = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`;
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally)    tally.textContent    = `Diamonds: ${g.diamondLvl3}`;
-    }
-
-    if(noteEl){
-      if(ml===9)      noteEl.textContent = 'Diamond Lvl 9 auto-adds to Max-Level, Max-Weight & Total Kills. Max-Level and Max-Weight also auto-add upward to Total Kills.';
-      else if(ml===5) noteEl.textContent = 'Diamond Lvl 5 auto-adds to Max-Level, Max-Weight & Total Kills. Diamond Lvl 4 auto-adds to Max-Weight & Total Kills only. Max-Level and Max-Weight also auto-add upward to Total Kills.';
-      else            noteEl.textContent = 'Diamond Lvl 3 auto-adds to Max-Level, Max-Weight & Total Kills. Diamond Lvl 2 auto-adds to Max-Weight & Total Kills only. Max-Level and Max-Weight also auto-add upward to Total Kills.';
     }
   }
 
@@ -2299,7 +2276,7 @@
 
     const d2Card = hasD2 ? `
         <div class="counter-card diamond2">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond2)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d2Label.replace("Diamond ","")}</span></span><span class="card-hint-corner" data-tip="Adds to Max-Weight &amp; Total Kills only — does NOT add to Max-Level.">→ adds to Max-Weight &amp; Total only</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--diamond2)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d2Label.replace("Diamond ","")}</span></span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="diamondLvl2" aria-label="Subtract">&minus;</button>
@@ -2311,16 +2288,9 @@
         </div>` : '';
 
     return `
-      <div class="counter-hints-row">
-        <span class="counter-hint-slot"></span>
-        <span class="counter-hint-slot"></span>
-        <span class="counter-hint-slot troll-hint" data-tip="Only count max-level kills that trolled — i.e. reached max level but did NOT make diamond. Diamond kills are already counted separately and cascade into this total automatically.">Only manually add max levels that DON'T make diamond (Trolls) here.</span>
-        <span class="counter-hint-slot troll-hint" data-tip="Only count kills that reached max weight but were NOT max level and NOT diamond. Max-level and diamond kills already cascade into this total automatically.">Only manually add max weights that DON'T make diamond and ARE NOT max level here.</span>
-        <span class="counter-hint-slot"></span>
-      </div>
       <section class="counters">
         <div class="counter-card diamond3">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d3Label.replace("Diamond ","")}</span></span><span class="card-hint-corner" data-tip="Adds to Max-Level, Max-Weight &amp; Total Kills automatically — only tap this counter once per kill.">→ adds to Max-Level, Max-Weight &amp; Total</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d3Label.replace("Diamond ","")}</span></span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="diamondLvl3" aria-label="Subtract">&minus;</button>
@@ -2332,26 +2302,15 @@
         </div>
         ${d2Card}
         <div class="counter-card antler">
-          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Max-Level</span><span class="card-hint-corner" data-tip="Adds to Max-Weight &amp; Total Kills — only tap this for max-level kills that did NOT make diamond.">→ adds to Max-Weight &amp; Total</span></div>
-          <div class="card-sub">total this grind</div>
+          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
+          <div class="card-sub">this grind</div>
           <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract max-level kill">&minus;</button>
+            <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract troll kill">&minus;</button>
             <div class="count-display" id="maxLevelCount">0</div>
-            <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add max-level kill">+</button>
+            <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add troll kill">+</button>
           </div>
           <div class="breakdown" id="maxLevelBreakdown"></div>
-          ${keybindFooter('maxLevelOnly', 'Max-Level')}
-        </div>
-        <div class="counter-card weight">
-          <div class="card-top"><span class="card-icon" style="color:var(--weight)">${weightIcon}</span><span class="card-label">Max-Weight</span><span class="card-hint-corner" data-tip="Adds to Total Kills only — only tap this for max-weight kills that are NOT max-level and NOT diamond.">→ adds to Total only</span></div>
-          <div class="card-sub">total this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="maxWeightOnly" aria-label="Subtract max-weight-only kill">&minus;</button>
-            <div class="count-display" id="maxWeightCount">0</div>
-            <button class="ctrl-btn plus" data-target="maxWeightOnly" aria-label="Add max-weight-only kill">+</button>
-          </div>
-          <div class="breakdown" id="maxWeightBreakdown"></div>
-          ${keybindFooter('maxWeightOnly', 'Max-Weight')}
+          ${keybindFooter('maxLevelOnly', 'Trolls')}
         </div>
         ${hasD2 ? `
         <div class="total-rare-row">
@@ -2678,45 +2637,33 @@
     const d3El = document.getElementById('diamondLvl3Count');
     const d2El = document.getElementById('diamondLvl2Count');
     const lEl = document.getElementById('maxLevelCount');
-    const wEl = document.getElementById('maxWeightCount');
     const tEl = document.getElementById('totalCount');
     if(!d3El) return;
 
     d3El.textContent = g.diamondLvl3;
     if(d2El) d2El.textContent = g.diamondLvl2;
-    if(lEl) lEl.textContent = totalMaxLevel(g);
-    if(wEl) wEl.textContent = totalMaxWeight(g);
+    if(lEl) lEl.textContent = g.maxLevelOnly || 0;
     if(tEl) tEl.textContent = totalKillsOf(g);
 
     const mlBreak = document.getElementById('maxLevelBreakdown');
-    const mwBreak = document.getElementById('maxWeightBreakdown');
     const totBreak = document.getElementById('totalBreakdown');
     const tally = document.getElementById('diamondTally');
 
+    if(mlBreak){ mlBreak.textContent = `→ also adds to Total Kills`; mlBreak.dataset.tip = mlBreak.textContent; }
+
     if(hasD2){
-      if(mlBreak){ mlBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`; mlBreak.dataset.tip = mlBreak.textContent; }
-      if(mwBreak){ mwBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`; mwBreak.dataset.tip = mwBreak.textContent; }
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally) tally.textContent = `Diamonds: ${totalDiamond(g)} (${d3label}: ${g.diamondLvl3} · ${d2label}: ${g.diamondLvl2})`;
     } else {
-      if(mlBreak){ mlBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} other`; mlBreak.dataset.tip = mlBreak.textContent; }
-      if(mwBreak){ mwBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} other`; mwBreak.dataset.tip = mwBreak.textContent; }
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly} max-lvl + ${g.maxWeightOnly} max-wt + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
+      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
       if(tally) tally.textContent = `Diamonds: ${g.diamondLvl3}`;
-    }
-
-    const noteEl = document.getElementById('counterNote');
-    if(noteEl){
-      if(ml === 9) noteEl.textContent = 'Diamond Lvl 9 auto-adds to Max-Level, Max-Weight & Total Kills. Max-Level and Max-Weight also auto-add upward to Total Kills.';
-      else if(ml === 5) noteEl.textContent = 'Diamond Lvl 5 auto-adds to Max-Level, Max-Weight & Total Kills. Diamond Lvl 4 auto-adds to Max-Weight & Total Kills only. Max-Level and Max-Weight also auto-add upward to Total Kills.';
-      else noteEl.textContent = 'Diamond Lvl 3 auto-adds to Max-Level, Max-Weight & Total Kills. Diamond Lvl 2 auto-adds to Max-Weight & Total Kills only. Max-Level and Max-Weight also auto-add upward to Total Kills.';
     }
 
     const rareEl = document.getElementById('rareCount');
     if(rareEl) rareEl.textContent = g.rareCount || 0;
 
     if(bumpTarget){
-      const bumpMap = { diamondLvl3:d3El, diamondLvl2:d2El, maxLevelOnly:lEl, maxWeightOnly:wEl, other:tEl, rareCount:rareEl };
+      const bumpMap = { diamondLvl3:d3El, diamondLvl2:d2El, maxLevelOnly:lEl, other:tEl, rareCount:rareEl };
       const el = bumpMap[bumpTarget];
       if(el){ el.classList.remove('bump'); requestAnimationFrame(() => { el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 150); }); }
     }
