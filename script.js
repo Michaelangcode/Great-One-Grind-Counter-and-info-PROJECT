@@ -752,6 +752,7 @@
               <div class="go-log-right">
                 <button class="go-revert-btn" data-id="${g.id}">↺ Revert to Open Grind</button>
                 <div class="go-log-counter-row">
+                  <button class="go-share-btn" data-id="${g.id}">📤 Share</button>
                   <button class="go-edit-counter-btn" data-id="${g.id}">✎ Edit Counter</button>
                   <button class="grind-delete-btn go-log-delete-btn" data-id="${g.id}" title="Delete this entry">✕ Delete</button>
                 </div>
@@ -774,6 +775,9 @@
       });
       cards.querySelectorAll('.go-edit-counter-btn').forEach(btn => {
         btn.addEventListener('click', () => showCounterEditModal(btn.dataset.id));
+      });
+      cards.querySelectorAll('.go-share-btn').forEach(btn => {
+        btn.addEventListener('click', () => shareSingleGrind(btn.dataset.id));
       });
       cards.querySelectorAll('.go-revert-btn').forEach(btn => {
         btn.addEventListener('click', () => revertToOpen(btn.dataset.id));
@@ -1444,7 +1448,10 @@
 
       <div class="tab-panel" id="panel-summary" style="display:none;">
         <section>
-          <h2>Overview — All Grinds</h2>
+          <div class="section-header-row">
+            <h2>Overview — All Grinds</h2>
+            <button id="shareOverviewBtn" class="share-btn">📤 Share Overview</button>
+          </div>
           <div class="stats-grid" id="statsGrid"></div>
         </section>
         <section>
@@ -1696,6 +1703,7 @@
       e.target.value = '';
     });
     document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+    document.getElementById('shareOverviewBtn').addEventListener('click', shareOverview);
     document.getElementById('wizardCancelBtn').addEventListener('click', closeWizard);
     document.getElementById('wizardBackBtn').addEventListener('click', wizardBack);
 
@@ -2604,6 +2612,192 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     const msg = document.getElementById('importMsg');
     if(msg){ msg.textContent = 'CSV downloaded.'; setTimeout(() => { if(msg.textContent==='CSV downloaded.') msg.textContent=''; }, 4000); }
+  }
+
+  // ---------- Shareable Image Cards ----------
+  const SHARE_SITE_URL = 'advancedgrindcounter.netlify.app';
+
+  function slugify(str){
+    return String(str).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'grind';
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function drawShareCard({ title, subtitle, badge, stats, footer }){
+    const W = 900, DPR = 2, cols = 2, gap = 24, rowH = 96;
+    const headerH = 130;
+    const rows = Math.ceil(stats.length / cols);
+    const gridH = rows * rowH;
+    const footerH = 50;
+    const H = headerH + gridH + footerH;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#121c16');
+    grad.addColorStop(1, '#0e1611');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#c9a14a';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(5, 5, W - 10, H - 10);
+
+    ctx.fillStyle = '#e9e4d6';
+    ctx.font = "700 32px Merriweather, serif";
+    ctx.fillText(title, 32, 56);
+
+    if(badge){
+      ctx.font = "700 14px Nunito, sans-serif";
+      const bw = ctx.measureText(badge).width + 24;
+      ctx.fillStyle = '#e8612c';
+      roundRect(ctx, W - 32 - bw, 28, bw, 30, 15);
+      ctx.fill();
+      ctx.fillStyle = '#121c16';
+      ctx.fillText(badge, W - 32 - bw + 12, 49);
+    }
+
+    ctx.fillStyle = '#8fa089';
+    ctx.font = "600 16px Nunito, sans-serif";
+    ctx.fillText(subtitle, 32, 84);
+
+    ctx.fillStyle = '#c9a14a';
+    ctx.fillRect(32, headerH - 20, W - 64, 2);
+
+    const colW = (W - 64 - gap * (cols - 1)) / cols;
+    stats.forEach((s, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const x = 32 + col * (colW + gap);
+      const y = headerH + row * rowH;
+      const boxH = rowH - 16;
+
+      ctx.fillStyle = '#1b2a21';
+      roundRect(ctx, x, y, colW, boxH, 10);
+      ctx.fill();
+      ctx.strokeStyle = '#33453a';
+      ctx.lineWidth = 1;
+      roundRect(ctx, x, y, colW, boxH, 10);
+      ctx.stroke();
+
+      ctx.fillStyle = s.color || '#c9a14a';
+      roundRect(ctx, x, y, colW, 4, 2);
+      ctx.fill();
+
+      ctx.fillStyle = s.color || '#e9e4d6';
+      ctx.font = "900 28px Nunito, sans-serif";
+      ctx.fillText(String(s.value), x + 16, y + 44);
+
+      ctx.fillStyle = '#8fa089';
+      ctx.font = "600 12px Nunito, sans-serif";
+      ctx.fillText(s.label.toUpperCase(), x + 16, y + 64);
+    });
+
+    ctx.fillStyle = '#8fa089';
+    ctx.font = "500 13px Nunito, sans-serif";
+    ctx.fillText(footer, 32, H - 20);
+    const urlText = '🏆 ' + SHARE_SITE_URL;
+    ctx.font = "700 13px Nunito, sans-serif";
+    const urlW = ctx.measureText(urlText).width;
+    ctx.fillStyle = '#c9a14a';
+    ctx.fillText(urlText, W - 32 - urlW, H - 20);
+
+    return canvas;
+  }
+
+  function exportShareCard(canvas, filename, shareTitle, shareText){
+    canvas.toBlob(async (blob) => {
+      if(!blob) return;
+      let file = null;
+      try{ file = new File([blob], filename, { type: 'image/png' }); }catch(e){}
+      if(file && navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: shareTitle, text: shareText });
+          return;
+        }catch(err){
+          if(err && err.name === 'AbortError') return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
+  function shareSingleGrind(id){
+    const g = grinds.find(x => x.id === id);
+    if(!g) return;
+    const isNonGo = g.species === NON_GO;
+    const displayName = g.nickname || g.defaultName || (isNonGo ? NON_GO : `${g.species} — ${g.map}`);
+    const subtitle = (isNonGo ? NON_GO : `${g.species} — ${g.map}`) + (g.platform ? ` · ${g.platform}` : '') + (g.cycle ? ` · #${g.cycle}` : '');
+    const dia = totalDiamond(g), tk = totalKillsOf(g);
+    const t = g.trophy || {};
+    const stats = [
+      { label:'Diamond', value: dia, color:'#9fd9e8' },
+      { label:'Trolls', value: g.maxLevelOnly||0, color:'#c9a14a' },
+      { label:'Total Kills', value: tk, color:'#9aa7b0' },
+      { label:'Avg Kills / Diamond', value: dia === 0 ? '—' : (tk/dia).toFixed(2), color:'#e8612c' },
+    ];
+    if(g.rareTracking && g.rareCount) stats.push({ label:'Rare Fur', value: g.rareCount, color:'#c9a14a' });
+    const canvas = drawShareCard({
+      title: displayName,
+      subtitle,
+      badge: t.outcome || null,
+      stats,
+      footer: `Logged ${formatDate(g.loggedAt)}`,
+    });
+    exportShareCard(canvas, `${slugify(displayName)}-grind-card.png`, `${displayName} — Great One Grind`, `My Great One grind: ${displayName} — ${tk} total kills, ${dia} diamond.`);
+  }
+
+  function shareOverview(){
+    const all = grinds;
+    const completed = completedGrindsList();
+    const totalAll = all.length;
+    const totalOpen = all.filter(g => g.status === 'open').length;
+    const totalDone = completed.length;
+    const n = completed.length || 1;
+    const sumDiamond = completed.reduce((s,e)=>s+totalDiamond(e),0);
+    const sumL = completed.reduce((s,e)=>s+totalMaxLevel(e),0);
+    const sumT = completed.reduce((s,e)=>s+totalKillsOf(e),0);
+
+    const stats = [
+      { label:'Total Grinds', value: totalAll, color:'#e9e4d6' },
+      { label:'Completed', value: totalDone, color:'#9fd9e8' },
+      { label:'Open', value: totalOpen, color:'#c9a14a' },
+    ];
+    if(completed.length > 0){
+      stats.push(
+        { label:'Avg Diamonds / Grind', value: (sumDiamond/n).toFixed(1), color:'#9fd9e8' },
+        { label:'Avg Max-Level / Grind', value: (sumL/n).toFixed(1), color:'#c9a14a' },
+        { label:'Avg Total Kills / Grind', value: (sumT/n).toFixed(1), color:'#9aa7b0' },
+        { label:'Avg Kills / Diamond', value: sumDiamond === 0 ? '—' : (sumT/sumDiamond).toFixed(2), color:'#e8612c' }
+      );
+    }
+
+    const canvas = drawShareCard({
+      title: 'My Great One Grind Overview',
+      subtitle: 'All-time stats across every logged grind',
+      badge: null,
+      stats,
+      footer: `Generated ${formatDate(new Date().toISOString())}`,
+    });
+    exportShareCard(canvas, 'great-one-grind-overview.png', 'My Great One Grind Overview', `${totalDone} Great Ones logged, ${sumT} total kills all-time.`);
   }
 
   function importData(file){
