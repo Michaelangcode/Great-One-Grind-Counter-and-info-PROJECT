@@ -1717,9 +1717,10 @@
         </div>
         <div class="tab-group-divider"></div>
         <div class="tab-group">
-          <div class="tab-group-label">Settings</div>
+          <div class="tab-group-label">Settings/About</div>
           <div class="tab-group-btns">
             <button class="tab-btn" data-tab="tool-settings">Settings</button>
+            <button class="tab-btn" data-tab="about">About</button>
           </div>
         </div>
       </nav>
@@ -1891,6 +1892,74 @@
         </section>
       </div>
 
+      <div class="tab-panel" id="panel-about" style="display:none;">
+        <section>
+          <h2>About</h2>
+          <p class="info-text">The Great One Grind Log is an advanced tool built for grinders who want convenience and powerful features all in one place.</p>
+          <p class="info-text" style="margin-top:10px;">When I first started Great One grinding, I used a simple counter on my phone &mdash; it worked well enough. But the deeper I got into the grinding playstyle, the more quality-of-life features I found myself wishing existed in one place instead of scattered across notes and memory. Eventually, I was inspired to build this tool.</p>
+        </section>
+
+        <section>
+          <h2>The Tool Has Four Parts</h2>
+
+          <h3 class="how-it-works-subhead">1. The Counter</h3>
+          <p class="info-text">The counter is simple to use but does a lot under the hood, and is full of personalized customization.</p>
+          <ul class="how-it-works-list">
+            <li>Choose from the game's Great One species and maps, or set up a custom grind for anything else.</li>
+            <li>Basic or Advanced modes, depending on how detailed you want to track your grinds.</li>
+            <li>Support for running dozens of grinds at once (every open grind auto-saves, so you can pick any of them up at any time).</li>
+            <li>Mouse or keyboard control with the ability to sync keys to counter, and cascade logic that keeps every kill tier accurate with a single tap. A full breakdown of how everything works is in the "How to Use Counter" tab.</li>
+          </ul>
+
+          <h3 class="how-it-works-subhead">2. The Log</h3>
+          <p class="info-text">The log is where grinds and Great Ones are logged for future reference.</p>
+          <ul class="how-it-works-list">
+            <li>Logging a Great One auto-saves the grind to your Grind Log with kill count, diamonds, average diamond rate, and more.</li>
+            <li>When you log a Great One, you can also fill in trophy details &mdash; hunt result, weight, fur, rack/antlers, personal notes &mdash; right away or later.</li>
+            <li>From the Grind Log, you can view any grind's full details and use the filter tool to find specific ones quickly.</li>
+            <li>Nothing's locked in. Edit any logged grind's details anytime, or revert it back into an Open Grind in the counter if you logged it too early.</li>
+          </ul>
+
+          <h3 class="how-it-works-subhead">3. Analytics</h3>
+          <p class="info-text">Found in the All Grinds Summary tab, this shows stats on your logged grinds in more depth than you'd get tracking by hand. (Analytics only pull from grinds that are both LOGGED and on ADVANCED mode.)</p>
+          <ul class="how-it-works-list">
+            <li>An overview of averages &mdash; kills, diamonds, diamond rate, etc &mdash; across all your grinds.</li>
+            <li>A trend bar showing whether certain harvest types are trending up or down over time.</li>
+            <li>A look at whether specific harvest types (diamond rank, max level, max weight) correlate with faster or slower Great One spawns (please keep in mind all produced information on Great One spawns is speculative and NOT confirmed by developers of the game).</li>
+            <li>Side-by-side comparison of the same-species grinds across different maps.</li>
+            <li>A full breakdown of how many grinds (logged or open) you have per species.</li>
+          </ul>
+
+          <h3 class="how-it-works-subhead">4. The Info</h3>
+          <p class="info-text">Basic info and advice for new grinders &mdash; all in the "Grinding Info" tab.</p>
+          <ul class="how-it-works-list">
+            <li>Current Great One species and their max levels.</li>
+            <li>Basic grinding tips and common terminology.</li>
+            <li>Male-animal terminology (bucks, boars, bulls, etc.)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>FAQ</h2>
+
+          <h3 class="how-it-works-subhead">Who is this tool for?</h3>
+          <p class="info-text">Everybody &mdash; from people brand new to grinding to seasoned grinders who want more out of their data. The amount of customization means it can fit however you play.</p>
+
+          <h3 class="how-it-works-subhead">What makes it different from notes or a spreadsheet?</h3>
+          <p class="info-text">You could technically replicate many of this tool's features by hand, but this keeps everything in one place and does the math for you &mdash; no manual tallying or separate spreadsheet to maintain.</p>
+
+          <h3 class="how-it-works-subhead">Do I use this tool myself?</h3>
+          <p class="info-text">Yes. It saves me time and a headache, and using it for my own grinds allows me to understand what features should be added for the community!</p>
+
+          <h3 class="how-it-works-subhead">How was this tool created?</h3>
+          <p class="info-text">This tool was created through AI. Under my direction, AI has created many features of the tool; however, I have had a significant hand in the layout, features, informational text, and other parts of the tool.</p>
+        </section>
+
+        <section>
+          <p class="info-note">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
+        </section>
+      </div>
+
       <footer>
         <div id="resetBtnWrap" style="display:none; margin-bottom:14px;">
           <button id="resetBtn" class="reset-danger-btn">Reset all data</button>
@@ -1985,6 +2054,7 @@
     document.getElementById('panel-counter-tool').style.display = tab === 'counter-tool' ? '' : 'none';
     document.getElementById('panel-info').style.display = tab === 'info' ? '' : 'none';
     document.getElementById('panel-tool-settings').style.display = tab === 'tool-settings' ? '' : 'none';
+    document.getElementById('panel-about').style.display = tab === 'about' ? '' : 'none';
     const resetWrap = document.getElementById('resetBtnWrap');
     if(resetWrap) resetWrap.style.display = tab === 'counter-tool' ? '' : 'none';
     if(tab === 'summary'){ renderStats(); renderChart(); renderCorrelation(); }
