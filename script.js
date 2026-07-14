@@ -1711,7 +1711,7 @@
         <div class="tab-group">
           <div class="tab-group-label">Information</div>
           <div class="tab-group-btns">
-            <button class="tab-btn" data-tab="counter-tool">How to Use Counter</button>
+            <button class="tab-btn" data-tab="counter-tool">How to Use Tool</button>
             <button class="tab-btn" data-tab="info">Grinding Info</button>
           </div>
         </div>
@@ -1768,14 +1768,14 @@
 
       <div class="tab-panel" id="panel-counter-tool" style="display:none;">
         <section>
-          <h2>How to Use the Counter</h2>
-          <p class="info-text">This counter is an easy way to keep track of your grind at a higher level &mdash; instead of trying to remember exact numbers in your head while you hunt, you just tap a button each time you take a relevant kill, and the tool keeps the running totals for you.</p>
-          <p class="info-text" style="margin-top:10px;">That info is then taken and used to help figure out whether a Great One spawn is dependent on certain variables &mdash; specifically, whether killing more diamond, max-level, or max-weight animals lines up with needing fewer (or more) total kills before a Great One shows up.</p>
+          <h2>How to Use This Tool</h2>
+          <p class="info-text">This tool is an easy way to keep track of your grind at a higher level &mdash; instead of trying to remember exact numbers in your head while you hunt, you just tap a button each time you take a relevant kill, and the tool keeps the running totals for you.</p>
+          <p class="info-text" style="margin-top:10px;">That info is then taken and used to help figure out whether a Great One spawn is dependent on certain variables &mdash; specifically, whether killing more diamond, max-level, or max-weight est animals lines up with needing fewer (or more) total kills before a Great One shows up.</p>
           <p class="info-note">The accuracy of what this tool tells you is only as good as the accuracy of what you put into it. If a kill is miscounted or miscategorized, the averages and correlations built from it will be off too.</p>
         </section>
 
         <section>
-          <h2>How It Works</h2>
+          <h2>The Counter</h2>
 
           <h3 class="how-it-works-subhead">Starting a grind</h3>
           <p class="info-text">To begin, hit <strong>+ Start New Grind</strong> on the Current Grind tab. A short step-by-step menu walks you through picking your species, map, platform, and counter style. Once you confirm, the counter is ready to use immediately.</p>
@@ -1791,13 +1791,13 @@
             <li><strong>Diamond (max level)</strong> &mdash; The highest diamond level for the species (e.g. Diamond Lvl 3, Lvl 5, or Lvl 9). Tap this every time you kill a max level diamond.</li>
             <li><strong>Diamond (lower level)</strong> &mdash; Only available for species with a max level below 9. This is a diamond one level below the top (e.g. Diamond Lvl 2 or Lvl 4). Tap this for those kills.</li>
             <li><strong>Max-Level</strong> &mdash; A max-level animal. Only tap this for max-level kills that trolled &mdash; info of max level diamonds are automatically counted (and added to this counter) from additions to <em>their</em> counter.</li>
-            <li><strong>Max-Weight</strong> &mdash; An animal that reached max weight but did not reach max level. Only tap this for max-weight kills that didn't already qualify as anything above.</li>
+            <li><strong>Max-Weight Est</strong> &mdash; An animal that reached max weight est but did not reach max level. Only tap this for max-weight-est kills that didn't already qualify as anything above.</li>
             <li><strong>Total Kills</strong> &mdash; Any other kill that doesn't fit the categories above (all other kills). Only tap for kills not already counted.</li>
           </ul>
 
           <h3 class="how-it-works-subhead">Cascading totals</h3>
-          <p class="info-text">Each kill is only ever entered once &mdash; into its own button. The counter automatically takes into account whether an animal added to a certain counter should also add to the total of another counter (if the animal matches attributes recorded in another counter). For example, a Max-Level diamond is always a Diamond, a Max-Level, a Max-Weight, and counts as a Kill. Therefore, when the "Max-Level Diamond" counter receives +1, the "Max-Level" counter, "Max-Weight" counter, and "Total Kills" counter automatically receive a +1 to their total as well.</p>
-          <p class="info-text" style="margin-top:10px;">For example: if you log 5 max level diamonds, 2 lower level diamonds, 3 trolls, and 1 max-weight &mdash; the Max-Level display shows <strong>8</strong> (5+3), Max-Weight shows <strong>11</strong> (5+2+3+1), and Total Kills shows <strong>11</strong> (5+2+3+1 + any "other" kills added via the Total button).</p>
+          <p class="info-text">Each kill is only ever entered once &mdash; into its own button. The counter automatically takes into account whether an animal added to a certain counter should also add to the total of another counter (if the animal matches attributes recorded in another counter). For example, a Max-Level diamond is always a Diamond, a Max-Level, a Max-Weight Est, and counts as a Kill. Therefore, when the "Max-Level Diamond" counter receives +1, the "Max-Level" counter, "Max-Weight Est" counter, and "Total Kills" counter automatically receive a +1 to their total as well.</p>
+          <p class="info-text" style="margin-top:10px;">For example: if you log 5 max level diamonds, 2 lower level diamonds, 3 trolls, and 1 max-weight est &mdash; the Max-Level display shows <strong>8</strong> (5+3), Max-Weight Est shows <strong>11</strong> (5+2+3+1), and Total Kills shows <strong>11</strong> (5+2+3+1 + any "other" kills added via the Total button).</p>
 
           <h3 class="how-it-works-subhead">Basic counter</h3>
           <p class="info-text">The Basic counter is a simpler alternative. Instead of separate tiers, it has just three buttons: <strong>Diamond</strong> (all diamonds combined), <strong>Troll</strong> (max-level kills that didn't make diamond), and <strong>Total Kills</strong> (all other kills). The total displayed is the sum of all three.</p>
@@ -1805,15 +1805,22 @@
 
           <h3 class="how-it-works-subhead">Rare fur counter</h3>
           <p class="info-text">Both modes include an optional <strong>Rare Fur</strong> counter. Enable it with the toggle if you want to track how many rare-furred animals you kill during a grind. This counter is completely independent &mdash; it does not feed into any other total or affect any statistics.</p>
+        </section>
 
-          <h3 class="how-it-works-subhead">Logging a Great One</h3>
-          <p class="info-text">When your Great One finally spawns and you've taken the kill, hit <strong>Log Great One</strong> at the bottom of the counter. This closes the grind and moves it to the <strong>Great One Log</strong>, where you can record trophy details (weight, fur, score, etc.) and revisit the counter data later.</p>
-          <p class="info-text" style="margin-top:10px;">If you need to correct counter numbers after logging, you can reopen the inline counter on any Great One Log card using the <strong>Edit Counter</strong> button. If you logged too early or by mistake, use <strong>Revert to Open Grind</strong> to move it back.</p>
+        <section>
+          <h2>The Log</h2>
+          <p class="info-text">When your Great One finally spawns and you've taken the kill, hit <strong>Log Great One</strong> at the bottom of the counter. This closes the grind and moves it to the <strong>Grind Log</strong>, automatically saving your kill counts, diamonds, and average kills/diamond alongside it.</p>
+          <p class="info-text" style="margin-top:10px;">From there you can fill in trophy details &mdash; hunt result, weight, fur, rack/antlers, personal notes &mdash; right away or later, and edit them anytime.</p>
+          <p class="info-text" style="margin-top:10px;">The Grind Log lets you view any grind's full details and use the search/filter tool to find specific entries quickly by name, species, map, platform, or notes.</p>
+          <p class="info-text" style="margin-top:10px;">Nothing's locked in: reopen the counter on any Grind Log card with <strong>Edit Counter</strong> to fix numbers after the fact, or use <strong>Revert to Open Grind</strong> if you logged it too early or by mistake.</p>
+        </section>
 
-          <h3 class="how-it-works-subhead">Averages, trends, and correlations</h3>
-          <p class="info-text">Once you have at least one Advanced grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. It shows averages (like average kills per diamond across all grinds) and a trend chart showing how your kill counts have moved over time.</p>
-          <p class="info-text" style="margin-top:10px;">With 2 or more logged grinds, the <strong>Correlation</strong> section appears. This looks at whether higher counts of a particular kill type (diamonds, max-levels, max-weights) tend to line up with needing fewer or more total kills to get a Great One. A stronger correlation means a clearer pattern; a weak one means the data doesn't show a meaningful relationship yet. More grinds logged = more reliable results.</p>
-          <p class="info-note">Keep in mind: every grind in this data already ended in a Great One. The correlation isn't measuring your <em>odds</em> of getting one &mdash; it's measuring whether certain kill types seem to affect <em>how many total kills it takes</em>.</p>
+        <section>
+          <h2>Analytics</h2>
+          <p class="info-text">Once you have at least one Advanced-mode grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. (Analytics only pull from grinds that are both logged and on Advanced mode &mdash; Basic-mode grinds skip this since they don't track the detailed breakdown it needs.)</p>
+          <p class="info-text" style="margin-top:10px;">It shows an overview of averages &mdash; kills, diamonds, diamond rate, and more &mdash; across all your grinds, plus a trend chart showing how your kill counts have moved over time.</p>
+          <p class="info-text" style="margin-top:10px;">With 2+ Advanced grinds logged, the <strong>Correlation</strong> section looks at whether higher counts of a particular kill type (diamonds, max-levels, max-weights est) tend to line up with needing fewer kills to get a Great One. More grinds logged = more reliable results. Keep in mind that all information produced is speculative, and is NOT confirmed by the game developers.</p>
+          <p class="info-text" style="margin-top:10px;"><strong>Grind Comparison</strong> lets you compare same-species grinds side-by-side across different maps, and <strong>Grinds by Species</strong> gives a full breakdown of how many grinds (open or completed) you have per species.</p>
         </section>
       </div>
 
@@ -1908,7 +1915,7 @@
             <li>Choose from the game's Great One species and maps, or set up a custom grind for anything else.</li>
             <li>Basic or Advanced modes, depending on how detailed you want to track your grinds.</li>
             <li>Support for running dozens of grinds at once (every open grind auto-saves, so you can pick any of them up at any time).</li>
-            <li>Mouse or keyboard control with the ability to sync keys to counter, and cascade logic that keeps every kill tier accurate with a single tap. A full breakdown of how everything works is in the "How to Use Counter" tab.</li>
+            <li>Mouse or keyboard control with the ability to sync keys to counter, and cascade logic that keeps every kill tier accurate with a single tap. A full breakdown of how everything works is in the "How to Use Tool" tab.</li>
           </ul>
 
           <h3 class="how-it-works-subhead">2. The Log</h3>
