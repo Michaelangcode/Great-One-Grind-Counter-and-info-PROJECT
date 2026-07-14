@@ -26,6 +26,8 @@
   <li>Renamed the Advanced counter's "Max-Level" button to "Trolls" and simplified its cascading logic</li>
   <li>Removed on-counter hint tooltips, now unnecessary with the simplified cascading</li>
   <li>Fixed the Correlation section's math to compare each kill type against the rest of the grind instead of a total that already includes it</li>
+  <li>Removed the Correlation section entirely — Diamonds and Max-Level kills overlap by construction, which made the underlying math unreliable even after the fix above</li>
+  <li>Removed separate Basic/Advanced counter styles — there's now one unified counter (Diamond / Trolls / Total Kills), and all Great One grinds (past and future) now feed into All Grinds Summary stats, trend, and comparison</li>
 </ul>
 
 <h2>1.2.0 — Phase 2: Netlify Hosting</h2>

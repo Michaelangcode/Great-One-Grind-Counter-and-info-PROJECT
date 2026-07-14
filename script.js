@@ -55,7 +55,6 @@
   let lastFailedSave = null;
   let lastErrorDetail = '';
   let hasUnsavedChanges = false;
-  let corrViewMode = 'scatter';
   let keybinds = {}; // { target: key }
   let twoStepDelete = false; // true = delete after 1 confirm only; false (default) = 2 confirms
   let sessionGoal = null;       // { goal: number, killsAtStart: number } — resets on grind switch/end/GO log
@@ -147,7 +146,7 @@
   // diamondLvl2 = lower diamond (Lv2/Lv4/Lv8) — does NOT count toward max-level
   function totalMaxLevel(c){ return (c.diamondLvl3||0) + (c.maxLevelOnly||0); }
   function totalMaxWeight(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0) + (c.maxLevelOnly||0) + (c.maxWeightOnly||0); }
-  // Max-Weight Est is no longer tracked by the Advanced counter (removed from UI); Total Kills no longer includes it going forward.
+  // Max-Weight Est is no longer tracked by the counter (removed from UI); Total Kills no longer includes it going forward.
   function totalKillsOf(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0) + (c.maxLevelOnly||0) + (c.other||0); }
 
   function grindNumberForCombo(species, map, unlistedName){
@@ -176,7 +175,7 @@
       maxLevel: maxLevelForSpecies(species),
       lvl89toggle: false,
       diamondLvl3:0, diamondLvl2:0, maxLevelOnly:0, maxWeightOnly:0, other:0, rareCount:0, rareTracking:false,
-      counterMode: species === NON_GO ? 'basic' : 'advanced',
+      counterMode: 'basic',
       notes:'', createdAt:now, lastUsedAt:now, loggedAt:null, cycle:null
     };
   }
@@ -204,7 +203,7 @@
   function getActiveGrind(){ return grinds.find(g => g.id === activeGrindId) || null; }
   function grindSpeciesLabel(g){ return (g.species === UNLISTED_GO && g.unlistedName) ? g.unlistedName : g.species; }
   function openGrindsList(){ return grinds.filter(g => g.status === 'open').slice().sort((a,b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt)); }
-  function completedGrindsList(){ return grinds.filter(g => g.status === 'completed' && g.counterMode !== 'basic'); }
+  function completedGrindsList(){ return grinds.filter(g => g.status === 'completed' && g.species !== NON_GO); }
   function allCompletedGrindsList(){ return grinds.filter(g => g.status === 'completed'); }
 
   function checkStorageAvailable(){
@@ -256,72 +255,6 @@
       newActiveId = openG.id;
     }
     return { grinds:newGrinds, activeGrindId:newActiveId };
-  }
-
-  function pearson(xs, ys){
-    const n = xs.length;
-    if(n < 2) return null;
-    const meanX = xs.reduce((a,b)=>a+b,0)/n;
-    const meanY = ys.reduce((a,b)=>a+b,0)/n;
-    let num=0, denX=0, denY=0;
-    for(let i=0;i<n;i++){ const dx=xs[i]-meanX, dy=ys[i]-meanY; num+=dx*dy; denX+=dx*dx; denY+=dy*dy; }
-    if(denX===0 || denY===0) return null;
-    return num / Math.sqrt(denX*denY);
-  }
-
-  function interpretR(r){
-    if(r === null) return 'Not enough variation yet to calculate';
-    const abs = Math.abs(r);
-    const strength = abs < 0.2 ? 'very weak' : abs < 0.4 ? 'weak' : abs < 0.6 ? 'moderate' : abs < 0.8 ? 'strong' : 'very strong';
-    const dir = r > 0.001 ? 'positive' : r < -0.001 ? 'negative' : 'no';
-    return `${strength} ${dir} correlation (r = ${r.toFixed(2)})`;
-  }
-
-  function buildScatterSVG(xs, ys, color, xLabel){
-    const n = xs.length;
-    if(n < 2) return `<div class="empty-note" style="padding:14px; font-size:12px;">Need at least 2 grinds logged to plot this.</div>`;
-    let xMin = Math.min(...xs), xMax = Math.max(...xs);
-    let yMin = Math.min(...ys), yMax = Math.max(...ys);
-    let xRange = (xMax - xMin) || 1, yRange = (yMax - yMin) || 1;
-    const xPad = xRange * 0.18, yPad = yRange * 0.18;
-    const pxMin = xMin - xPad, pxMax = xMax + xPad, pyMin = yMin - yPad, pyMax = yMax + yPad;
-    const pxRange = pxMax - pxMin, pyRange = pyMax - pyMin;
-    const left=32, right=248, top=12, bottom=132;
-    const mapX = x => left + ((x-pxMin)/pxRange)*(right-left);
-    const mapY = y => bottom - ((y-pyMin)/pyRange)*(bottom-top);
-    const points = xs.map((x,i)=>`<circle cx="${mapX(x).toFixed(1)}" cy="${mapY(ys[i]).toFixed(1)}" r="4" fill="${color}" opacity="0.85"></circle>`).join('');
-    let regressionLine = '';
-    const meanX = xs.reduce((a,b)=>a+b,0)/n, meanY = ys.reduce((a,b)=>a+b,0)/n;
-    let num=0, den=0;
-    xs.forEach((x,i)=>{ num += (x-meanX)*(ys[i]-meanY); den += (x-meanX)*(x-meanX); });
-    if(den !== 0){
-      const slope = num/den, intercept = meanY - slope*meanX;
-      const y1 = slope*xMin+intercept, y2 = slope*xMax+intercept;
-      regressionLine = `<line x1="${mapX(xMin).toFixed(1)}" y1="${mapY(y1).toFixed(1)}" x2="${mapX(xMax).toFixed(1)}" y2="${mapY(y2).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"></line>`;
-    }
-    return `
-      <svg viewBox="0 0 260 168" width="100%" height="150" preserveAspectRatio="xMidYMid meet">
-        <line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" stroke="var(--line)" stroke-width="1"></line>
-        <line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="var(--line)" stroke-width="1"></line>
-        ${regressionLine}
-        ${points}
-        <text x="${left}" y="${bottom+13}" font-size="9" fill="var(--muted)" font-family="Nunito">${Math.max(0,Math.round(xMin))}</text>
-        <text x="${right}" y="${bottom+13}" font-size="9" fill="var(--muted)" text-anchor="end" font-family="Nunito">${Math.round(xMax)}</text>
-        <text x="${(left+right)/2}" y="${bottom+25}" font-size="9" fill="var(--muted)" text-anchor="middle" font-family="Nunito">${xLabel}</text>
-      </svg>
-    `;
-  }
-
-  function buildSimpleBar(r, color){
-    if(r === null) return `<div class="empty-note" style="padding:14px; font-size:12px;">Need at least 2 grinds logged.</div>`;
-    const pct = Math.round(Math.abs(r) * 100);
-    const dir = r > 0.001 ? 'positive' : r < -0.001 ? 'negative' : 'none';
-    return `
-      <div class="simple-bar-wrap">
-        <div class="simple-bar-track"><div class="simple-bar-fill" style="width:${pct}%; background:${color};"></div></div>
-        <div class="simple-bar-label">${pct}% <span class="simple-bar-dir">(${dir})</span></div>
-      </div>
-    `;
   }
 
   function setSyncStatus(state){
@@ -392,7 +325,7 @@
     browsingOpenGrinds = false;
     markDirty();
     renderCurrentPanel();
-    renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+    renderStats(); renderChart(); renderLiveStat();
     switchTab('current');
     saveNow();
   }
@@ -424,7 +357,7 @@
     browsingOpenGrinds = false;
     markDirty();
     renderCurrentPanel();
-    renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+    renderStats(); renderChart(); renderLiveStat();
     saveNow();
     if(!isNonGo) showTrophyModal(g.id);
   }
@@ -458,7 +391,7 @@
         markDirty();
         await saveNow();
         renderCurrentPanel();
-        renderStats(); renderChart(); renderCorrelation(); renderGoLog(); renderLiveStat();
+        renderStats(); renderChart(); renderGoLog(); renderLiveStat();
         switchTab('current');
       }
     );
@@ -539,9 +472,7 @@
     if(!g) return;
 
     // Build inline counter HTML (reuse same builder, scoped by grindId)
-    const counterHTML = g.counterMode === 'basic'
-      ? buildInlineCounterHTML(g, grindId)
-      : buildInlineCounterHTML(g, grindId);
+    const counterHTML = buildInlineCounterHTML(g, grindId);
 
     const panel = document.createElement('div');
     panel.id = `go-inline-counter-${grindId}`;
@@ -615,93 +546,20 @@
   }
 
   function buildInlineCounterHTML(g, grindId){
-    // Identical structure to buildCounterHTML/buildBasicCounterHTML but IDs are scoped with grindId
-    const ml = g.maxLevel || 3;
-
-    if(g.counterMode === 'basic'){
-      return `
-        <section class="counters">
-          <div class="counter-card diamond3">
-            <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond</span><span class="card-hint-corner" data-tip="Adds to Total Kills automatically — only tap this counter once per kill.">→ adds to Total Kills</span></div>
-            <div class="card-sub">this grind</div>
-            <div class="counter-controls">
-              <button class="ctrl-btn minus" data-target="diamondLvl3" aria-label="Subtract">&minus;</button>
-              <div class="count-display" id="ic-${grindId}-diamondLvl3Count">0</div>
-              <button class="ctrl-btn plus" data-target="diamondLvl3" aria-label="Add">+</button>
-            </div>
-            <div class="breakdown" id="ic-${grindId}-basicDiamondBreakdown"></div>
-            ${keybindFooter('diamondLvl3', 'Diamond')}
-          </div>
-          <div class="counter-card antler">
-            <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Troll</span><span class="card-hint-corner" data-tip="Adds to Total Kills automatically — only tap this counter once per kill.">→ adds to Total Kills</span></div>
-            <div class="card-sub">this grind</div>
-            <div class="counter-controls">
-              <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract">&minus;</button>
-              <div class="count-display" id="ic-${grindId}-maxLevelCount">0</div>
-              <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add">+</button>
-            </div>
-            <div class="breakdown" id="ic-${grindId}-basicTrollBreakdown"></div>
-            ${keybindFooter('maxLevelOnly', 'Troll')}
-          </div>
-          <div class="total-rare-row">
-            <div class="counter-card total">
-              <div class="card-top"><span class="card-icon" style="color:var(--total)">${totalIcon}</span><span class="card-label">Total Kills</span></div>
-              <div class="card-sub">total this grind</div>
-              <div class="counter-controls">
-                <button class="ctrl-btn minus" data-target="other" aria-label="Subtract">&minus;</button>
-                <div class="count-display" id="ic-${grindId}-totalCount">0</div>
-                <button class="ctrl-btn plus" data-target="other" aria-label="Add">+</button>
-              </div>
-              <div class="breakdown" id="ic-${grindId}-basicTotalBreakdown"></div>
-              ${keybindFooter('other', 'Total Kills')}
-            </div>
-            <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-              <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
-              <div class="card-sub">this grind</div>
-              <div class="counter-controls">
-                <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
-                <div class="count-display" id="ic-${grindId}-rareCount">0</div>
-                <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
-              </div>
-              <div class="rare-note">Does not affect any other counter.</div>
-              ${keybindFooter('rareCount', 'Rare Fur')}
-            </div>
-          </div>
-        </section>`;
-    }
-
-    // Advanced mode
-    const d3Label = ml === 5 ? 'Diamond Lvl 5' : ml === 9 ? 'Diamond Lvl 9' : 'Diamond Lvl 3';
-    const d2Label = ml === 5 ? 'Diamond Lvl 4' : 'Diamond Lvl 2';
-    const hasD2 = ml !== 9;
-    const d2Card = hasD2 ? `
-      <div class="counter-card diamond2">
-        <div class="card-top"><span class="card-icon" style="color:var(--diamond2)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d2Label.replace("Diamond ","")}</span></span></div>
-        <div class="card-sub">this grind</div>
-        <div class="counter-controls">
-          <button class="ctrl-btn minus" data-target="diamondLvl2" aria-label="Subtract">&minus;</button>
-          <div class="count-display" id="ic-${grindId}-diamondLvl2Count">0</div>
-          <button class="ctrl-btn plus" data-target="diamondLvl2" aria-label="Add">+</button>
-        </div>
-        <div class="breakdown" id="ic-${grindId}-diamond2Breakdown"></div>
-        ${keybindFooter('diamondLvl2', d2Label)}
-      </div>` : '';
-
+    // Identical structure to buildCounterHTML but IDs are scoped with grindId
     return `
-      <p class="diamond-tally" id="ic-${grindId}-diamondTally"></p>
       <section class="counters">
         <div class="counter-card diamond3">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d3Label.replace("Diamond ","")}</span></span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond</span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="diamondLvl3" aria-label="Subtract">&minus;</button>
             <div class="count-display" id="ic-${grindId}-diamondLvl3Count">0</div>
             <button class="ctrl-btn plus" data-target="diamondLvl3" aria-label="Add">+</button>
           </div>
-          <div class="breakdown" id="ic-${grindId}-diamond3Breakdown"></div>
-          ${keybindFooter('diamondLvl3', d3Label)}
+          <div class="breakdown" id="ic-${grindId}-basicDiamondBreakdown"></div>
+          ${keybindFooter('diamondLvl3', 'Diamond')}
         </div>
-        ${d2Card}
         <div class="counter-card antler">
           <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
           <div class="card-sub">this grind</div>
@@ -710,10 +568,9 @@
             <div class="count-display" id="ic-${grindId}-maxLevelCount">0</div>
             <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add">+</button>
           </div>
-          <div class="breakdown" id="ic-${grindId}-maxLevelBreakdown"></div>
+          <div class="breakdown" id="ic-${grindId}-basicTrollBreakdown"></div>
           ${keybindFooter('maxLevelOnly', 'Trolls')}
         </div>
-        ${hasD2 ? `
         <div class="total-rare-row">
           <div class="counter-card total">
             <div class="card-top"><span class="card-icon" style="color:var(--total)">${totalIcon}</span><span class="card-label">Total Kills</span></div>
@@ -723,7 +580,7 @@
               <div class="count-display" id="ic-${grindId}-totalCount">0</div>
               <button class="ctrl-btn plus" data-target="other" aria-label="Add">+</button>
             </div>
-            <div class="breakdown" id="ic-${grindId}-totalBreakdown"></div>
+            <div class="breakdown" id="ic-${grindId}-basicTotalBreakdown"></div>
             ${keybindFooter('other', 'Total Kills')}
           </div>
           <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
@@ -738,92 +595,29 @@
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
-        ` : `
-        <div class="counter-card total">
-          <div class="card-top"><span class="card-icon" style="color:var(--total)">${totalIcon}</span><span class="card-label">Total Kills</span></div>
-          <div class="card-sub">total this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="other" aria-label="Subtract">&minus;</button>
-            <div class="count-display" id="ic-${grindId}-totalCount">0</div>
-            <button class="ctrl-btn plus" data-target="other" aria-label="Add">+</button>
-          </div>
-          <div class="breakdown" id="ic-${grindId}-totalBreakdown"></div>
-          ${keybindFooter('other', 'Total Kills')}
-        </div>
-        `}
-      </section>
-      ${!hasD2 ? `
-      <div class="rare-counter-section">
-        <div class="rare-toggle-row">
-          <span class="rare-toggle-label">Track rare fur kills</span>
-          <button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}"><span class="rare-switch-knob"></span></button>
-        </div>
-        <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-          <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span></div>
-          <div class="card-sub">this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
-            <div class="count-display" id="ic-${grindId}-rareCount">0</div>
-            <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
-          </div>
-          <div class="rare-note">Does not affect any other counter.</div>
-          ${keybindFooter('rareCount', 'Rare Fur')}
-        </div>
-      </div>` : ''}`;
+      </section>`;
   }
 
   function renderInlineCounters(g, grindId){
     const pfx = `ic-${grindId}-`;
-    const ml = g.maxLevel || 3;
-    const hasD2 = ml !== 9;
-
-    if(g.counterMode === 'basic'){
-      const basicTotal = (g.diamondLvl3||0) + (g.maxLevelOnly||0) + (g.other||0);
-      const d3El = document.getElementById(pfx+'diamondLvl3Count');
-      const lEl  = document.getElementById(pfx+'maxLevelCount');
-      const tEl  = document.getElementById(pfx+'totalCount');
-      const rEl  = document.getElementById(pfx+'rareCount');
-      const dBreak  = document.getElementById(pfx+'basicDiamondBreakdown');
-      const tBreak  = document.getElementById(pfx+'basicTrollBreakdown');
-      const totBreak= document.getElementById(pfx+'basicTotalBreakdown');
-      if(d3El) d3El.textContent = g.diamondLvl3||0;
-      if(lEl)  lEl.textContent  = g.maxLevelOnly||0;
-      if(tEl)  tEl.textContent  = basicTotal;
-      if(rEl)  rEl.textContent  = g.rareCount||0;
-      if(dBreak)   dBreak.textContent   = `→ also adds to Total Kills`;
-      if(tBreak)   tBreak.textContent   = `→ also adds to Total Kills`;
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3||0} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
-      return;
-    }
-
-    // Advanced
-    const d3label = ml===9 ? 'dia-Lv9' : ml===5 ? 'dia-Lv5' : 'dia-Lv3';
-    const d2label = ml===5 ? 'dia-Lv4' : 'dia-Lv2';
-
+    // totalDiamond/totalKillsOf (not raw diamondLvl3) so legacy grinds with a
+    // leftover diamondLvl2 value (from the old split-tier counter) still total correctly.
+    const dia = totalDiamond(g);
+    const tk = totalKillsOf(g);
     const d3El = document.getElementById(pfx+'diamondLvl3Count');
-    const d2El = document.getElementById(pfx+'diamondLvl2Count');
     const lEl  = document.getElementById(pfx+'maxLevelCount');
     const tEl  = document.getElementById(pfx+'totalCount');
     const rEl  = document.getElementById(pfx+'rareCount');
-    const mlBreak  = document.getElementById(pfx+'maxLevelBreakdown');
-    const totBreak = document.getElementById(pfx+'totalBreakdown');
-    const tally    = document.getElementById(pfx+'diamondTally');
-
-    if(d3El) d3El.textContent = g.diamondLvl3;
-    if(d2El) d2El.textContent = g.diamondLvl2;
+    const dBreak  = document.getElementById(pfx+'basicDiamondBreakdown');
+    const tBreak  = document.getElementById(pfx+'basicTrollBreakdown');
+    const totBreak= document.getElementById(pfx+'basicTotalBreakdown');
+    if(d3El) d3El.textContent = dia;
     if(lEl)  lEl.textContent  = g.maxLevelOnly||0;
-    if(tEl)  tEl.textContent  = totalKillsOf(g);
+    if(tEl)  tEl.textContent  = tk;
     if(rEl)  rEl.textContent  = g.rareCount||0;
-
-    if(mlBreak){ mlBreak.textContent = `→ also adds to Total Kills`; mlBreak.dataset.tip = mlBreak.textContent; }
-
-    if(hasD2){
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
-      if(tally)    tally.textContent    = `Diamonds: ${totalDiamond(g)} (${d3label}: ${g.diamondLvl3} · ${d2label}: ${g.diamondLvl2})`;
-    } else {
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
-      if(tally)    tally.textContent    = `Diamonds: ${g.diamondLvl3}`;
-    }
+    if(dBreak)   dBreak.textContent   = `→ also adds to Total Kills`;
+    if(tBreak)   tBreak.textContent   = `→ also adds to Total Kills`;
+    if(totBreak){ totBreak.textContent = `= ${dia} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
   }
 
   function updateGoLogStatRow(g, statRow){
@@ -855,7 +649,6 @@
     const prevSpecies = document.getElementById('goLogSpeciesFilter') ? document.getElementById('goLogSpeciesFilter').value : '';
     const prevMap = document.getElementById('goLogMapFilter') ? document.getElementById('goLogMapFilter').value : '';
     const prevPlatform = document.getElementById('goLogPlatformFilter') ? document.getElementById('goLogPlatformFilter').value : '';
-    const prevMode = document.getElementById('goLogModeFilter') ? document.getElementById('goLogModeFilter').value : '';
 
     area.innerHTML = `
       <div class="go-log-controls">
@@ -873,11 +666,6 @@
             <option value="">All platforms</option>
             ${platformSet.map(p => `<option value="${escapeAttr(p)}" ${prevPlatform===p?'selected':''}>${escapeHtml(p)}</option>`).join('')}
           </select>
-          <select id="goLogModeFilter">
-            <option value="" ${prevMode===''?'selected':''}>All counter styles</option>
-            <option value="advanced" ${prevMode==='advanced'?'selected':''}>Advanced</option>
-            <option value="basic" ${prevMode==='basic'?'selected':''}>Basic</option>
-          </select>
         </div>
       </div>
       <div id="goLogCards"></div>
@@ -888,13 +676,11 @@
       const spFilter = document.getElementById('goLogSpeciesFilter').value;
       const mapFilter = document.getElementById('goLogMapFilter').value;
       const platFilter = document.getElementById('goLogPlatformFilter').value;
-      const modeFilter = document.getElementById('goLogModeFilter').value;
       const cards = document.getElementById('goLogCards');
       const filtered = allTrophies.filter(g => {
         if(spFilter && grindSpeciesLabel(g) !== spFilter) return false;
         if(mapFilter && g.map !== mapFilter) return false;
         if(platFilter && g.platform !== platFilter) return false;
-        if(modeFilter && (g.counterMode || 'advanced') !== modeFilter) return false;
         if(search){
           const t = g.trophy || {};
           const haystack = [g.nickname, g.defaultName, grindSpeciesLabel(g), g.map, g.platform, t.fur, t.notes, t.score, t.antler, t.outcome].filter(Boolean).join(' ').toLowerCase();
@@ -930,7 +716,6 @@
               </div>
               <div class="go-log-meta">
                 <span class="go-outcome ${outcomeClass}">${escapeHtml(outcomeVal)}</span>
-                <span class="mode-badge mode-badge-${g.counterMode||'advanced'}">${g.counterMode === 'basic' ? 'Basic' : 'Advanced'}</span>
                 <span class="platform-tag">${escapeHtml(g.platform||'')}</span>
                 <span class="go-log-cycle">#${g.cycle}</span>
               </div>
@@ -1026,7 +811,6 @@
     document.getElementById('goLogSpeciesFilter').addEventListener('change', applyFilters);
     document.getElementById('goLogMapFilter').addEventListener('change', applyFilters);
     document.getElementById('goLogPlatformFilter').addEventListener('change', applyFilters);
-    document.getElementById('goLogModeFilter').addEventListener('change', applyFilters);
   }
 
   function renumberDefaultNames(){
@@ -1059,7 +843,7 @@
     if(returnToGrindId === id) returnToGrindId = null;
     markDirty();
     await saveNow();
-    renderStats(); renderChart(); renderCorrelation(); renderCurrentPanel(); renderGoLog(); renderLiveStat();
+    renderStats(); renderChart(); renderCurrentPanel(); renderGoLog(); renderLiveStat();
   }
 
   function askDeleteGrind(id, name){
@@ -1142,7 +926,7 @@
     grinds = []; activeGrindId = null; returnToGrindId = null; browsingOpenGrinds = false; editingId = null;
     markDirty();
     await saveNow();
-    renderCurrentPanel(); renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+    renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
   }
 
   function showInfo(title, message, onOk){
@@ -1180,8 +964,7 @@
     else if(wizardState.step === 'confirm-map'){ wizardState.step = 'new-map'; }
     else if(wizardState.step === 'edit-map'){ wizardState.step = wizardState._returnMapStep || (isUnlisted ? 'unlisted-map' : 'map'); }
     else if(wizardState.step === 'platform'){ wizardState.step = isUnlisted ? 'unlisted-map' : (wizardState.species === NON_GO ? 'species' : 'map'); }
-    else if(wizardState.step === 'countermode'){ wizardState.step = 'platform'; wizardState.platform = null; }
-    else if(wizardState.step === 'review'){ wizardState.step = 'countermode'; }
+    else if(wizardState.step === 'review'){ wizardState.step = 'platform'; wizardState.platform = null; }
     renderWizard();
   }
   function chooseSpecies(sp){
@@ -1192,8 +975,8 @@
     } else if(sp === NON_GO){
       wizardState.step = 'platform';
       showInfo(
-        'Non-Great One Grind — Basic Counter Only',
-        'Non-Great One grinds are automatically set to Basic counter mode. This keeps your All Grinds Summary stats and trends clean, since those are only meaningful for Great One grinds.',
+        'Non-Great One Grind',
+        'Non-Great One grinds are excluded from All Grinds Summary stats and trends, since those are only meaningful for Great One grinds.',
         () => { renderWizard(); document.getElementById('wizardModal').classList.remove('hidden'); }
       );
       document.getElementById('wizardModal').classList.add('hidden');
@@ -1214,30 +997,20 @@
   function chooseMap(m){ wizardState.map = m; wizardState.step = 'platform'; renderWizard(); }
   function choosePlatform(p){
     wizardState.platform = p;
-    if(wizardState.species === NON_GO){
-      chooseCounterMode('basic');
-    } else {
-      wizardState.step = 'countermode';
-      renderWizard();
-    }
-  }
-  function chooseCounterMode(mode){
-    wizardState.counterMode = mode;
     if(wizardState.species === UNLISTED_GO){
       wizardState.step = 'review';
       renderWizard();
       return;
     }
-    const sp = wizardState.species, mp = wizardState.species === NON_GO ? null : wizardState.map, p = wizardState.platform;
+    const sp = wizardState.species, mp = wizardState.species === NON_GO ? null : wizardState.map;
     const dup = grinds.find(x => x.status === 'open' && x.species === sp && x.map === mp && x.platform === p);
     if(dup){
       const dupName = dup.nickname ? `"${dup.nickname}"` : (sp === NON_GO ? NON_GO : `${sp} — ${mp}`);
       closeWizard();
-      showDuplicateWarning(dupName, sp, mp, p, mode);
+      showDuplicateWarning(dupName, sp, mp, p);
       return;
     }
     const g = freshGrind(sp, mp, p);
-    g.counterMode = mode;
     grinds.push(g);
     closeWizard();
     activateGrind(g.id);
@@ -1249,7 +1022,6 @@
       ? wizardState.unlistedMapExisting
       : ((wizardState.unlistedMap || '').trim() || null);
     const p = wizardState.platform;
-    const mode = wizardState.counterMode || 'advanced';
 
     // Always save custom species; only save map if it's a newly typed unique entry
     addCustomSpecies(displayName);
@@ -1258,7 +1030,6 @@
     }
 
     const g = freshGrind(UNLISTED_GO, mp, p, displayName);
-    g.counterMode = mode;
     g.unlistedName = displayName;
     if(wizardState.unlistedMaxLevel) g.maxLevel = wizardState.unlistedMaxLevel;
     grinds.push(g);
@@ -1266,11 +1037,10 @@
     activateGrind(g.id);
   }
 
-  function showDuplicateWarning(dupName, sp, mp, p, mode){
+  function showDuplicateWarning(dupName, sp, mp, p){
     pendingAction = () => {
       askConfirm(`Are you sure? This will create a second grind alongside "${dupName}".`, () => {
         const g = freshGrind(sp, mp, p);
-        g.counterMode = mode || 'advanced';
         grinds.push(g);
         activateGrind(g.id);
       });
@@ -1319,7 +1089,7 @@
         const doDelete = () => {
           removeCustomSpecies(name);
           wizModal.classList.remove('hidden');
-          renderWizard(); renderCurrentPanel(); renderGoLog(); renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+          renderWizard(); renderCurrentPanel(); renderGoLog(); renderStats(); renderChart(); renderLiveStat();
         };
         const msg1 = affected > 0
           ? `Remove "${name}" from Custom-Made Options? This will permanently delete ${affected} grind${affected!==1?'s':''} that use this species.`
@@ -1434,7 +1204,7 @@
         const doDelete = () => {
           removeCustomMap(name);
           wizModal.classList.remove('hidden');
-          renderWizard(); renderCurrentPanel(); renderGoLog(); renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+          renderWizard(); renderCurrentPanel(); renderGoLog(); renderStats(); renderChart(); renderLiveStat();
         };
         const msg1 = affected > 0
           ? `Remove "${name}" from Custom-Made Options? This will permanently delete ${affected} grind${affected!==1?'s':''} that use this map.`
@@ -1491,7 +1261,7 @@
         const doDelete = () => {
           removeCustomMap(name);
           wizModal.classList.remove('hidden');
-          renderWizard(); renderCurrentPanel(); renderGoLog(); renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+          renderWizard(); renderCurrentPanel(); renderGoLog(); renderStats(); renderChart(); renderLiveStat();
         };
         const msg1 = affected > 0
           ? `Remove "${name}" from Custom-Made Options? This will permanently delete ${affected} grind${affected!==1?'s':''} that use this map.`
@@ -1562,7 +1332,7 @@
         renameCustomSpecies(wizardState._editSp, v);
         wizardState._editSp = null; wizardState._editText = '';
         wizardState.step = 'species'; renderWizard();
-        renderGoLog(); renderStats(); renderCorrelation();
+        renderGoLog(); renderStats();
       };
       content.querySelector('#editSpSave').addEventListener('click', doSave);
       inp.addEventListener('keydown', e => { if(e.key === 'Enter') doSave(); });
@@ -1579,7 +1349,7 @@
         renameCustomMap(wizardState._editMap, v);
         wizardState._editMap = null; wizardState._editMapText = '';
         wizardState.step = wizardState._returnMapStep || 'unlisted-map'; renderWizard();
-        renderGoLog(); renderStats(); renderCorrelation();
+        renderGoLog(); renderStats();
       };
       content.querySelector('#editMapSave').addEventListener('click', doSave);
       inp.addEventListener('keydown', e => { if(e.key === 'Enter') doSave(); });
@@ -1591,35 +1361,6 @@
       `;
       content.querySelectorAll('.wizard-option-btn').forEach(btn => btn.addEventListener('click', () => choosePlatform(btn.dataset.p)));
 
-    } else if(wizardState.step === 'countermode'){
-      content.innerHTML = `
-        <div class="wizard-title">Which counter style?</div>
-        <div class="wizard-counter-cards">
-          <button class="wizard-mode-card wizard-mode-advanced" data-mode="advanced">
-            <div class="wizard-mode-title">Advanced <span class="wizard-mode-default-badge">Default</span></div>
-            <div class="wizard-mode-tagline" style="color:var(--diamond3); font-size:12px; margin-bottom:8px;">Best for extremely accurate accounting. Creates usable information for finding trends and averages.</div>
-            <ul class="wizard-mode-list">
-              <li>Tracks diamonds by level (e.g. Diamond Lvl 3 vs Lvl 2)</li>
-              <li>Tracks trolled max-level kills separately</li>
-              <li>Full kill breakdown and cascading totals</li>
-              <li>Results are saved to All Grinds Summary for stats and trends</li>
-            </ul>
-          </button>
-          <button class="wizard-mode-card wizard-mode-basic" data-mode="basic">
-            <div class="wizard-mode-title">Basic</div>
-            <div class="wizard-mode-tagline" style="color:var(--antler); font-size:12px; margin-bottom:8px;">Best for easy, relaxed grinding. Does NOT create information that can be used to find trends and averages.</div>
-            <ul class="wizard-mode-list">
-              <li>Tracks diamonds as one combined count</li>
-              <li>Tracks trolls (max-level kills that didn't make diamond)</li>
-              <li>Tracks total kills</li>
-              <li>Optional rare fur counter (same as Advanced)</li>
-              <li><strong>Not saved to All Grinds Summary</strong></li>
-            </ul>
-          </button>
-        </div>
-      `;
-      content.querySelectorAll('.wizard-mode-card').forEach(btn => btn.addEventListener('click', () => chooseCounterMode(btn.dataset.mode)));
-
     } else if(wizardState.step === 'review'){
       const displayMap = wizardState.unlistedMapExisting || wizardState.unlistedMap || '—';
       content.innerHTML = `
@@ -1628,7 +1369,6 @@
           <div class="wizard-review-row"><span class="wizard-review-label">Species</span><span class="wizard-review-val">${escapeHtml(wizardState.unlistedName||'Unlisted')}</span></div>
           <div class="wizard-review-row"><span class="wizard-review-label">Map</span><span class="wizard-review-val">${escapeHtml(displayMap)}</span></div>
           <div class="wizard-review-row"><span class="wizard-review-label">Platform</span><span class="wizard-review-val">${escapeHtml(wizardState.platform||'—')}</span></div>
-          <div class="wizard-review-row"><span class="wizard-review-label">Counter Style</span><span class="wizard-review-val">${escapeHtml(wizardState.counterMode||'advanced')}</span></div>
         </div>
         <p class="info-note" style="margin-bottom:12px;">Your species and map will be saved to the selection lists for future grinds.</p>
         <div class="wizard-review-actions">
@@ -1643,7 +1383,7 @@
     root.innerHTML = `
       <header class="masthead">
         <h1>GREAT ONE<br><span>GRIND LOG</span></h1>
-        <p class="subtitle">Track your (Great One) Grinds using this highly-specialized and detailed counter. Count kills, get averages, log grinds, and find correlations between kills and trophy spawns!</p>
+        <p class="subtitle">Track your (Great One) Grinds using this highly-specialized and detailed counter. Count kills, get averages, and log grinds!</p>
         <div class="sync-status" id="syncStatus"></div>
         <div class="backup-toolbar">
           <div class="backup-item">
@@ -1712,15 +1452,6 @@
           <div id="chartArea"></div>
         </section>
         <section>
-          <h2>Correlation With the Rest of the Grind</h2>
-          <p class="corr-caveat">Every logged grind already ended in a Great One, so this isn't "chance of a GO spawning" — it's whether getting more of a kill type lines up with needing fewer (or more) of everything else in that same grind. Best read with 5+ grinds logged.</p>
-          <div class="view-toggle" id="corrViewToggle">
-            <button class="toggle-btn active" data-view="scatter">Scatter Plot</button>
-            <button class="toggle-btn" data-view="simple">Simple % Bar</button>
-          </div>
-          <div class="corr-grid" id="corrGrid"></div>
-        </section>
-        <section>
           <h2>Grind Comparison</h2>
           <p class="corr-caveat">Select a species and 2 or more maps to compare averages across your logged grinds for that combination.</p>
           <div id="grindCompareArea"></div>
@@ -1743,40 +1474,35 @@
         <section>
           <h2>How to Use This Tool</h2>
           <p class="info-text">This tool is an easy way to keep track of your grind at a higher level &mdash; instead of trying to remember exact numbers in your head while you hunt, you just tap a button each time you take a relevant kill, and the tool keeps the running totals for you.</p>
-          <p class="info-text" style="margin-top:10px;">That info is then taken and used to help figure out whether a Great One spawn is dependent on certain variables &mdash; specifically, whether killing more diamonds or trolled max-level animals lines up with needing fewer (or more) of everything else in that same grind.</p>
-          <p class="info-note">The accuracy of what this tool tells you is only as good as the accuracy of what you put into it. If a kill is miscounted or miscategorized, the averages and correlations built from it will be off too.</p>
+          <p class="info-text" style="margin-top:10px;">That info is then taken and used to build averages and trends across all your grinds &mdash; see the Analytics section below.</p>
+          <p class="info-note">The accuracy of what this tool tells you is only as good as the accuracy of what you put into it. If a kill is miscounted or miscategorized, the averages built from it will be off too.</p>
         </section>
 
         <section>
           <h2>The Counter</h2>
 
           <h3 class="how-it-works-subhead">Starting a grind</h3>
-          <p class="info-text">To begin, hit <strong>+ Start New Grind</strong> on the Current Grind tab. A short step-by-step menu walks you through picking your species, map, platform, and counter style. Once you confirm, the counter is ready to use immediately.</p>
+          <p class="info-text">To begin, hit <strong>+ Start New Grind</strong> on the Current Grind tab. A short step-by-step menu walks you through picking your species, map, and platform. Once you confirm, the counter is ready to use immediately.</p>
           <p class="info-text" style="margin-top:10px;">You can run multiple grinds at the same time &mdash; switch between them anytime using <strong>Select Other (Open) Grind</strong>.</p>
 
           <h3 class="how-it-works-subhead">Using the counter</h3>
           <p class="info-text">Each time you kill a relevant animal during your grind, tap the appropriate counter button once. You can also hold a button down to repeat quickly. The counters update in real time and save automatically &mdash; no manual saving needed.</p>
           <p class="info-text" style="margin-top:10px;">If you play on PC, you can also assign keyboard keys to any counter using the <strong>Sync Key</strong> button at the bottom of each counter card. Once set, pressing that key will increment the counter without touching the screen.</p>
 
-          <h3 class="how-it-works-subhead">Advanced counter: what each button counts</h3>
-          <p class="info-text">The Advanced counter has a few individual buttons, each tracking a specific tier of kill. Here's how they relate to each other:</p>
+          <h3 class="how-it-works-subhead">What each button counts</h3>
+          <p class="info-text">The counter has three buttons, each tracking a specific kill type:</p>
           <ul class="how-it-works-list">
-            <li><strong>Diamond (max level)</strong> &mdash; The highest diamond level for the species (e.g. Diamond Lvl 3, Lvl 5, or Lvl 9). Tap this every time you kill a max level diamond.</li>
-            <li><strong>Diamond (lower level)</strong> &mdash; Only available for species with a max level below 9. This is a diamond one level below the top (e.g. Diamond Lvl 2 or Lvl 4). Tap this for those kills.</li>
-            <li><strong>Trolls</strong> &mdash; A max-level animal that didn't make diamond. Only tap this for trolled kills; your top-tier Diamond count is combined with Trolls automatically wherever a "Max-Level" figure is shown elsewhere (like All Grinds Summary), so you don't need to track that combination yourself.</li>
+            <li><strong>Diamond</strong> &mdash; Any diamond-rank kill for the species, combined into one count.</li>
+            <li><strong>Trolls</strong> &mdash; A max-level animal that didn't make diamond. Only tap this for trolled kills; your Diamond count is combined with Trolls automatically wherever a "Max-Level" figure is shown elsewhere (like All Grinds Summary), so you don't need to track that combination yourself.</li>
             <li><strong>Total Kills</strong> &mdash; Any other kill that doesn't fit the categories above. Only tap for kills not already counted.</li>
           </ul>
 
           <h3 class="how-it-works-subhead">Cascading totals</h3>
-          <p class="info-text">Each kill is only ever entered once &mdash; into its own button. Diamond Lvl 3/5/9, Diamond Lvl 2/4, and Trolls all add straight to Total Kills; nothing else cascades between the buttons on the counter itself.</p>
-          <p class="info-text" style="margin-top:10px;">For example: if you log 5 top-tier diamonds, 2 lower-tier diamonds, 3 trolls, and 1 other kill, Total Kills shows <strong>11</strong> (5+2+3+1).</p>
-
-          <h3 class="how-it-works-subhead">Basic counter</h3>
-          <p class="info-text">The Basic counter is a simpler alternative. Instead of separate tiers, it has just three buttons: <strong>Diamond</strong> (all diamonds combined), <strong>Troll</strong> (max-level kills that didn't make diamond), and <strong>Total Kills</strong> (all other kills). The total displayed is the sum of all three.</p>
-          <p class="info-text" style="margin-top:10px;">Basic mode is more simple and easy to use, but the tradeoff is that it doesn't produce the kind of data needed for averages and correlations. Grinds logged in Basic mode still appear in the Great One Log, but are excluded from the All Grinds Summary stats.</p>
+          <p class="info-text">Each kill is only ever entered once &mdash; into its own button. Diamond and Trolls both add straight to Total Kills; nothing else cascades between the buttons on the counter itself.</p>
+          <p class="info-text" style="margin-top:10px;">For example: if you log 5 diamonds, 3 trolls, and 1 other kill, Total Kills shows <strong>9</strong> (5+3+1).</p>
 
           <h3 class="how-it-works-subhead">Rare fur counter</h3>
-          <p class="info-text">Both modes include an optional <strong>Rare Fur</strong> counter. Enable it with the toggle if you want to track how many rare-furred animals you kill during a grind. This counter is completely independent &mdash; it does not feed into any other total or affect any statistics.</p>
+          <p class="info-text">An optional <strong>Rare Fur</strong> counter is available too. Enable it with the toggle if you want to track how many rare-furred animals you kill during a grind. This counter is completely independent &mdash; it does not feed into any other total or affect any statistics.</p>
         </section>
 
         <section>
@@ -1789,9 +1515,8 @@
 
         <section>
           <h2>Analytics</h2>
-          <p class="info-text">Once you have at least one Advanced-mode grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. (Analytics only pull from grinds that are both logged and on Advanced mode &mdash; Basic-mode grinds skip this since they don't track the detailed breakdown it needs.)</p>
+          <p class="info-text">Once you have at least one Great One grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. (Non-Great-One grinds are excluded, since those stats are only meaningful for Great One grinds.)</p>
           <p class="info-text" style="margin-top:10px;">It shows an overview of averages &mdash; kills, diamonds, diamond rate, and more &mdash; across all your grinds, plus a trend chart showing how your kill counts have moved over time.</p>
-          <p class="info-text" style="margin-top:10px;">With 2+ Advanced grinds logged, the <strong>Correlation</strong> section looks at whether higher counts of diamonds or max-level (troll) kills tend to line up with needing fewer of everything else in that same grind. More grinds logged = more reliable results. Keep in mind that all information produced is speculative, and is NOT confirmed by the game developers.</p>
           <p class="info-text" style="margin-top:10px;"><strong>Grind Comparison</strong> lets you compare same-species grinds side-by-side across different maps, and <strong>Grinds by Species</strong> gives a full breakdown of how many grinds (open or completed) you have per species.</p>
         </section>
       </div>
@@ -1885,7 +1610,6 @@
           <p class="info-text">The counter is simple to use but does a lot under the hood, and is full of personalized customization.</p>
           <ul class="how-it-works-list">
             <li>Choose from the game's Great One species and maps, or set up a custom grind for anything else.</li>
-            <li>Basic or Advanced modes, depending on how detailed you want to track your grinds.</li>
             <li>Support for running dozens of grinds at once (every open grind auto-saves, so you can pick any of them up at any time).</li>
             <li>Mouse or keyboard control with the ability to sync keys to counter, and cascade logic that keeps every kill tier accurate with a single tap. A full breakdown of how everything works is in the "How to Use Tool" tab.</li>
           </ul>
@@ -1900,11 +1624,10 @@
           </ul>
 
           <h3 class="how-it-works-subhead">3. Analytics</h3>
-          <p class="info-text">Found in the All Grinds Summary tab, this shows stats on your logged grinds in more depth than you'd get tracking by hand. (Analytics only pull from grinds that are both LOGGED and on ADVANCED mode.)</p>
+          <p class="info-text">Found in the All Grinds Summary tab, this shows stats on your logged grinds in more depth than you'd get tracking by hand. (Analytics only pull from LOGGED Great One grinds &mdash; Non-Great-One grinds are excluded.)</p>
           <ul class="how-it-works-list">
             <li>An overview of averages &mdash; kills, diamonds, diamond rate, etc &mdash; across all your grinds.</li>
             <li>A trend bar showing whether certain harvest types are trending up or down over time.</li>
-            <li>A look at whether specific harvest types (diamond rank, max level) correlate with getting a Great One faster or slower (please keep in mind all produced information on Great One spawns is speculative and NOT confirmed by developers of the game).</li>
             <li>Side-by-side comparison of the same-species grinds across different maps.</li>
             <li>A full breakdown of how many grinds (logged or open) you have per species.</li>
           </ul>
@@ -1973,13 +1696,6 @@
       e.target.value = '';
     });
     document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
-    document.querySelectorAll('#corrViewToggle .toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        corrViewMode = btn.dataset.view;
-        document.querySelectorAll('#corrViewToggle .toggle-btn').forEach(b => b.classList.toggle('active', b === btn));
-        renderCorrelation();
-      });
-    });
     document.getElementById('wizardCancelBtn').addEventListener('click', closeWizard);
     document.getElementById('wizardBackBtn').addEventListener('click', wizardBack);
 
@@ -2036,7 +1752,7 @@
     document.getElementById('panel-about').style.display = tab === 'about' ? '' : 'none';
     const resetWrap = document.getElementById('resetBtnWrap');
     if(resetWrap) resetWrap.style.display = tab === 'counter-tool' ? '' : 'none';
-    if(tab === 'summary'){ renderStats(); renderChart(); renderCorrelation(); }
+    if(tab === 'summary'){ renderStats(); renderChart(); }
     if(tab === 'golog'){ renderGoLog(); }
   }
 
@@ -2065,9 +1781,7 @@
 
     const startKills = sessionGoal.killsAtStart;
     const goal = sessionGoal.goal;
-    const currentKills = g.counterMode === 'basic'
-      ? (g.diamondLvl3||0) + (g.maxLevelOnly||0) + (g.other||0)
-      : totalKillsOf(g);
+    const currentKills = totalKillsOf(g);
     const sessionKills = Math.max(0, currentKills - startKills);
     const pct = Math.min(100, goal > 0 ? (sessionKills / goal * 100) : 0);
     const pctLabel = Math.floor(pct) + '%';
@@ -2135,9 +1849,7 @@
       if(!v || v < 1) return;
       const g = getActiveGrind();
       if(!g) return;
-      const kills = g.counterMode === 'basic'
-        ? (g.diamondLvl3||0) + (g.maxLevelOnly||0) + (g.other||0)
-        : totalKillsOf(g);
+      const kills = totalKillsOf(g);
       sessionGoal = { goal: v, killsAtStart: isEdit && sessionGoal ? sessionGoal.killsAtStart : kills };
       sessionGoalDone = false;
       modal.classList.add('hidden');
@@ -2161,8 +1873,8 @@
     const g = getActiveGrind();
     if(!g){ widget.style.display = 'none'; renderSessionGoal(); return; }
     widget.style.display = '';
-    const dia = g.counterMode === 'basic' ? (g.diamondLvl3||0) : totalDiamond(g);
-    const kills = g.counterMode === 'basic' ? (g.diamondLvl3||0) + (g.maxLevelOnly||0) + (g.other||0) : totalKillsOf(g);
+    const dia = totalDiamond(g);
+    const kills = totalKillsOf(g);
     el.textContent = dia === 0 ? '—' : (kills/dia).toFixed(2);
     renderSessionGoal();
   }
@@ -2207,12 +1919,10 @@
         const sp = document.getElementById('ogSpeciesFilter').value;
         const mp = document.getElementById('ogMapFilter').value;
         const pl = document.getElementById('ogPlatformFilter').value;
-        const mo = document.getElementById('ogModeFilter').value;
         const filtered = allOpen.filter(g => {
           if(sp && g.species !== sp) return false;
           if(mp && g.map !== mp) return false;
           if(pl && g.platform !== pl) return false;
-          if(mo && (g.counterMode || 'advanced') !== mo) return false;
           return true;
         });
         const scroll = document.getElementById('openGrindsScroll');
@@ -2222,7 +1932,7 @@
           btn.addEventListener('click', e => { e.stopPropagation(); deleteGrind(btn.dataset.id); });
         });
       }
-      ['ogSpeciesFilter','ogMapFilter','ogPlatformFilter','ogModeFilter'].forEach(id => {
+      ['ogSpeciesFilter','ogMapFilter','ogPlatformFilter'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.addEventListener('change', applyOpenFilters);
       });
@@ -2243,11 +1953,6 @@
             <option value="">All platforms</option>
             ${platformSet.map(p => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join('')}
           </select>
-          <select id="ogModeFilter">
-            <option value="">All counter styles</option>
-            <option value="advanced">Advanced</option>
-            <option value="basic">Basic</option>
-          </select>
         </div>
       </div>
       <p class="link-note">Most recently used at top. Tap a grind to open its counter.</p>
@@ -2264,120 +1969,10 @@
   }
 
   function buildCounterHTML(g){
-    const ml = g.maxLevel || 3;
-    const d3Label = ml === 5 ? 'Diamond Lvl 5' : ml === 9 ? 'Diamond Lvl 9' : 'Diamond Lvl 3';
-    const d2Label = ml === 5 ? 'Diamond Lvl 4' : 'Diamond Lvl 2';
-    const hasD2 = ml !== 9;
-
-    const d2Card = hasD2 ? `
-        <div class="counter-card diamond2">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond2)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d2Label.replace("Diamond ","")}</span></span></div>
-          <div class="card-sub">this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="diamondLvl2" aria-label="Subtract">&minus;</button>
-            <div class="count-display" id="diamondLvl2Count">0</div>
-            <button class="ctrl-btn plus" data-target="diamondLvl2" aria-label="Add">+</button>
-          </div>
-          <div class="breakdown" id="diamond2Breakdown"></div>
-          ${keybindFooter('diamondLvl2', d2Label)}
-        </div>` : '';
-
     return `
       <section class="counters">
         <div class="counter-card diamond3">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond <span class="card-label-lvl">${d3Label.replace("Diamond ","")}</span></span></div>
-          <div class="card-sub">this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="diamondLvl3" aria-label="Subtract">&minus;</button>
-            <div class="count-display" id="diamondLvl3Count">0</div>
-            <button class="ctrl-btn plus" data-target="diamondLvl3" aria-label="Add">+</button>
-          </div>
-          <div class="breakdown" id="diamond3Breakdown"></div>
-          ${keybindFooter('diamondLvl3', d3Label)}
-        </div>
-        ${d2Card}
-        <div class="counter-card antler">
-          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
-          <div class="card-sub">this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract troll kill">&minus;</button>
-            <div class="count-display" id="maxLevelCount">0</div>
-            <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add troll kill">+</button>
-          </div>
-          <div class="breakdown" id="maxLevelBreakdown"></div>
-          ${keybindFooter('maxLevelOnly', 'Trolls')}
-        </div>
-        ${hasD2 ? `
-        <div class="total-rare-row">
-          <div class="counter-card total">
-            <div class="card-top"><span class="card-icon" style="color:var(--total)">${totalIcon}</span><span class="card-label">Total Kills</span></div>
-            <div class="card-sub">total this grind</div>
-            <div class="counter-controls">
-              <button class="ctrl-btn minus" data-target="other" aria-label="Subtract uncategorized kill">&minus;</button>
-              <div class="count-display" id="totalCount">0</div>
-              <button class="ctrl-btn plus" data-target="other" aria-label="Add uncategorized kill">+</button>
-            </div>
-            <div class="breakdown" id="totalBreakdown"></div>
-            ${keybindFooter('other', 'Total Kills')}
-          </div>
-          <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
-            <div class="card-sub">this grind</div>
-            <div class="counter-controls">
-              <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
-              <div class="count-display" id="rareCount">0</div>
-              <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
-            </div>
-            <div class="rare-note">Does not affect any other counter. Rare fur spawn rates are fixed and cannot be influenced by kill count or kill type.</div>
-            ${keybindFooter('rareCount', 'Rare Fur')}
-          </div>
-        </div>
-        ` : `
-        <div class="counter-card total">
-          <div class="card-top"><span class="card-icon" style="color:var(--total)">${totalIcon}</span><span class="card-label">Total Kills</span></div>
-          <div class="card-sub">total this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="other" aria-label="Subtract uncategorized kill">&minus;</button>
-            <div class="count-display" id="totalCount">0</div>
-            <button class="ctrl-btn plus" data-target="other" aria-label="Add uncategorized kill">+</button>
-          </div>
-          <div class="breakdown" id="totalBreakdown"></div>
-          ${keybindFooter('other', 'Total Kills')}
-        </div>
-        `}
-      </section>
-      ${!hasD2 ? `
-      <div class="rare-counter-section">
-        <div class="rare-toggle-row">
-          <span class="rare-toggle-label">Track rare fur kills</span>
-          <button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}">
-            <span class="rare-switch-knob"></span>
-          </button>
-        </div>
-        <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-          <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span></div>
-          <div class="card-sub">this grind</div>
-          <div class="counter-controls">
-            <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
-            <div class="count-display" id="rareCount">0</div>
-            <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
-          </div>
-          <div class="rare-note">Does not affect any other counter. Rare fur spawn rates are fixed and cannot be influenced by kill count or kill type.</div>
-          ${keybindFooter('rareCount', 'Rare Fur')}
-        </div>
-      </div>` : ''}`;
-  }
-
-  function buildBasicCounterHTML(g){
-    return `
-      <div class="counter-hints-row">
-        <span class="counter-hint-slot"></span>
-        <span class="counter-hint-slot troll-hint" data-tip="Only count max-level kills that trolled — i.e. reached max level but did NOT make diamond. Diamond kills are already counted separately and cascade into this total automatically.">Only manually add max levels that DON'T make diamond (Trolls) here.</span>
-        <span class="counter-hint-slot"></span>
-      </div>
-      <section class="counters">
-        <div class="counter-card diamond3">
-          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond</span><span class="card-hint-corner" data-tip="Adds to Total Kills automatically — only tap this counter once per kill.">→ adds to Total Kills</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--diamond3)">${diamondIcon}</span><span class="card-label">Diamond</span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="diamondLvl3" aria-label="Subtract">&minus;</button>
@@ -2388,7 +1983,7 @@
           ${keybindFooter('diamondLvl3', 'Diamond')}
         </div>
         <div class="counter-card antler">
-          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Troll</span><span class="card-hint-corner" data-tip="Adds to Total Kills automatically — only tap this counter once per kill.">→ adds to Total Kills</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract">&minus;</button>
@@ -2396,7 +1991,7 @@
             <button class="ctrl-btn plus" data-target="maxLevelOnly" aria-label="Add">+</button>
           </div>
           <div class="breakdown" id="basicTrollBreakdown"></div>
-          ${keybindFooter('maxLevelOnly', 'Troll')}
+          ${keybindFooter('maxLevelOnly', 'Trolls')}
         </div>
         <div class="total-rare-row">
           <div class="counter-card total">
@@ -2476,7 +2071,6 @@
         </div>
         <div class="grind-header-meta">
           <div class="grind-meta-col"><span class="grind-meta-label">Grind status:</span><span class="cycle-flag">${escapeHtml(statusLabel)}</span></div>
-          <div class="grind-meta-col"><span class="grind-meta-label">Counter style:</span><span class="mode-badge mode-badge-${g.counterMode}">${g.counterMode === 'basic' ? 'Basic' : 'Advanced'}</span></div>
           <div class="grind-meta-col"><span class="grind-meta-label">Platform:</span><span class="platform-tag">${escapeHtml(g.platform)}</span></div>
         </div>
       </div>
@@ -2485,9 +2079,7 @@
         <button id="renameSaveBtn" class="rename-save-btn">Save</button>
         <button id="renameCancelBtn" class="rename-cancel-btn">Cancel</button>
       </div>
-      <p class="link-note" id="counterNote"></p>
-      <p class="diamond-tally" id="diamondTally"></p>
-      ${g.counterMode === 'basic' ? buildBasicCounterHTML(g) : buildCounterHTML(g)}
+      ${buildCounterHTML(g)}
 
       <section class="log-action">
         <input type="text" id="notesInput" placeholder="Notes (optional)" maxlength="120" value="${escapeAttr(g.notes||'')}" />
@@ -2512,7 +2104,7 @@
         active[target] = Math.max(0, (active[target] || 0) + delta);
         renderCounters(target);
         renderLiveStat();
-        if(active.status === 'completed'){ renderStats(); renderChart(); renderCorrelation(); }
+        if(active.status === 'completed'){ renderStats(); renderChart(); }
         markDirty();
         scheduleSave();
       }
@@ -2595,70 +2187,27 @@
     const g = getActiveGrind();
     if(!g) return;
 
-    if(g.counterMode === 'basic'){
-      const d3El = document.getElementById('diamondLvl3Count');
-      const lEl = document.getElementById('maxLevelCount');
-      const tEl = document.getElementById('totalCount');
-      if(!d3El) return;
-      const basicTotal = (g.diamondLvl3||0) + (g.maxLevelOnly||0) + (g.other||0);
-      d3El.textContent = g.diamondLvl3||0;
-      if(lEl) lEl.textContent = g.maxLevelOnly||0;
-      if(tEl) tEl.textContent = basicTotal;
-      const dBreak = document.getElementById('basicDiamondBreakdown');
-      const tBreak = document.getElementById('basicTrollBreakdown');
-      const totBreak = document.getElementById('basicTotalBreakdown');
-      if(dBreak){ dBreak.textContent = `→ also adds to Total Kills`; dBreak.dataset.tip = dBreak.textContent; }
-      if(tBreak){ tBreak.textContent = `→ also adds to Total Kills`; tBreak.dataset.tip = tBreak.textContent; }
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3||0} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
-      const tally = document.getElementById('diamondTally');
-      if(tally) tally.textContent = `Diamonds: ${g.diamondLvl3||0}`;
-      const noteEl = document.getElementById('counterNote');
-      if(noteEl) noteEl.textContent = 'Basic mode: Diamond and Troll both auto-add to Total Kills. This grind will appear in the Great One Log but not in All Grinds Summary.';
-      const rareEl = document.getElementById('rareCount');
-      if(rareEl) rareEl.textContent = g.rareCount || 0;
-      if(bumpTarget){
-        const bumpMap = { diamondLvl3:d3El, maxLevelOnly:lEl, other:tEl, rareCount:document.getElementById('rareCount') };
-        const el = bumpMap[bumpTarget];
-        if(el){ el.classList.remove('bump'); requestAnimationFrame(() => { el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 150); }); }
-      }
-      return;
-    }
-
-    const ml = g.maxLevel || 3;
-    const hasD2 = ml !== 9;
-    const d3label = ml===9 ? 'dia-Lv9' : ml===5 ? 'dia-Lv5' : 'dia-Lv3';
-    const d2label = ml===5 ? 'dia-Lv4' : 'dia-Lv2';
-
     const d3El = document.getElementById('diamondLvl3Count');
-    const d2El = document.getElementById('diamondLvl2Count');
     const lEl = document.getElementById('maxLevelCount');
     const tEl = document.getElementById('totalCount');
     if(!d3El) return;
-
-    d3El.textContent = g.diamondLvl3;
-    if(d2El) d2El.textContent = g.diamondLvl2;
-    if(lEl) lEl.textContent = g.maxLevelOnly || 0;
-    if(tEl) tEl.textContent = totalKillsOf(g);
-
-    const mlBreak = document.getElementById('maxLevelBreakdown');
-    const totBreak = document.getElementById('totalBreakdown');
-    const tally = document.getElementById('diamondTally');
-
-    if(mlBreak){ mlBreak.textContent = `→ also adds to Total Kills`; mlBreak.dataset.tip = mlBreak.textContent; }
-
-    if(hasD2){
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.diamondLvl2} ${d2label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
-      if(tally) tally.textContent = `Diamonds: ${totalDiamond(g)} (${d3label}: ${g.diamondLvl3} · ${d2label}: ${g.diamondLvl2})`;
-    } else {
-      if(totBreak){ totBreak.textContent = `= ${g.diamondLvl3} ${d3label} + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
-      if(tally) tally.textContent = `Diamonds: ${g.diamondLvl3}`;
-    }
-
+    // totalDiamond/totalKillsOf (not raw diamondLvl3) so legacy grinds with a
+    // leftover diamondLvl2 value (from the old split-tier counter) still total correctly.
+    const dia = totalDiamond(g);
+    const tk = totalKillsOf(g);
+    d3El.textContent = dia;
+    if(lEl) lEl.textContent = g.maxLevelOnly||0;
+    if(tEl) tEl.textContent = tk;
+    const dBreak = document.getElementById('basicDiamondBreakdown');
+    const tBreak = document.getElementById('basicTrollBreakdown');
+    const totBreak = document.getElementById('basicTotalBreakdown');
+    if(dBreak){ dBreak.textContent = `→ also adds to Total Kills`; dBreak.dataset.tip = dBreak.textContent; }
+    if(tBreak){ tBreak.textContent = `→ also adds to Total Kills`; tBreak.dataset.tip = tBreak.textContent; }
+    if(totBreak){ totBreak.textContent = `= ${dia} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
     const rareEl = document.getElementById('rareCount');
     if(rareEl) rareEl.textContent = g.rareCount || 0;
-
     if(bumpTarget){
-      const bumpMap = { diamondLvl3:d3El, diamondLvl2:d2El, maxLevelOnly:lEl, other:tEl, rareCount:rareEl };
+      const bumpMap = { diamondLvl3:d3El, maxLevelOnly:lEl, other:tEl, rareCount:rareEl };
       const el = bumpMap[bumpTarget];
       if(el){ el.classList.remove('bump'); requestAnimationFrame(() => { el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 150); }); }
     }
@@ -3002,36 +2551,6 @@
     `;
   }
 
-  function renderCorrelation(){
-    const container = document.getElementById('corrGrid');
-    if(!container) return;
-    const completed = completedGrindsList();
-    if(completed.length < 2){
-      container.innerHTML = `<div class="empty-note" style="flex:1 1 100%;">Log at least 2 grinds (5+ recommended) to see correlation trends here.</div>`;
-      return;
-    }
-    const diaXs = completed.map(e=>totalDiamond(e));
-    const lXs = completed.map(e=>totalMaxLevel(e));
-    // Correlate each category against the REST of the grind's kills (Total minus that category),
-    // not against Total itself — Total is partly built from these categories, so testing against
-    // Total directly is structurally biased toward a positive result no matter what.
-    const diaZs = completed.map(e=>totalKillsOf(e) - totalDiamond(e));
-    const lZs = completed.map(e=>totalKillsOf(e) - totalMaxLevel(e));
-    const rDia = pearson(diaXs, diaZs), rL = pearson(lXs, lZs);
-    const visual = (xs, ys, r, color, xLabel) => corrViewMode === 'simple' ? buildSimpleBar(r, color) : buildScatterSVG(xs, ys, color, xLabel);
-    container.innerHTML = `
-      <div class="corr-card">
-        <div class="corr-title" style="color:var(--diamond3)">Diamonds vs Rest of Grind</div>
-        ${visual(diaXs, diaZs, rDia, 'var(--diamond3)', 'diamond kills →')}
-        <div class="corr-r">${interpretR(rDia)}</div>
-      </div>
-      <div class="corr-card">
-        <div class="corr-title" style="color:var(--antler)">Max-Level vs Rest of Grind</div>
-        ${visual(lXs, lZs, rL, 'var(--antler)', 'max-level kills →')}
-        <div class="corr-r">${interpretR(rL)}</div>
-      </div>
-    `;
-  }
 
   function renderHistory(){ /* no-op — Previous Grinds tab removed */ }
 
@@ -3059,7 +2578,7 @@
 
   function exportCsv(){
     const completed = grinds.filter(g => g.loggedAt);
-    const cols = ['Name','Species','Map','Platform','Counter Mode','Diamonds','Max-Level','Total Kills','Avg Kills/Diamond','Rare Furs','Date Logged'];
+    const cols = ['Name','Species','Map','Platform','Diamonds','Max-Level','Total Kills','Avg Kills/Diamond','Rare Furs','Date Logged'];
     const escape = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
     const rows = completed.map(g => {
       const dia = totalDiamond(g);
@@ -3069,7 +2588,6 @@
         grindSpeciesLabel(g),
         g.map || '',
         g.platform || '',
-        g.counterMode || 'advanced',
         dia, totalMaxLevel(g), tk,
         dia > 0 ? (tk / dia).toFixed(2) : '—',
         g.rareCount || 0,
@@ -3109,7 +2627,7 @@
           returnToGrindId = null; browsingOpenGrinds = false; editingId = null;
           markDirty();
           await saveNow();
-          renderCurrentPanel(); renderStats(); renderChart(); renderCorrelation(); renderLiveStat();
+          renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
           if(msg) msg.textContent = 'Backup imported.';
         });
       }catch(e){
@@ -3249,7 +2767,7 @@
         g[target] = Math.max(0, (g[target] || 0) + 1);
         renderCounters(target);
         renderLiveStat();
-        if(g.status === 'completed'){ renderStats(); renderChart(); renderCorrelation(); }
+        if(g.status === 'completed'){ renderStats(); renderChart(); }
         markDirty();
         scheduleSave();
       }
