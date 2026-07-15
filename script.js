@@ -1441,7 +1441,7 @@
           <div class="tab-group-label">Settings/About</div>
           <div class="tab-group-btns">
             <button class="tab-btn" data-tab="tool-settings">Settings</button>
-            <button class="tab-btn" data-tab="about">About</button>
+            <button class="tab-btn" data-tab="about">About/Feedback</button>
           </div>
         </div>
       </nav>
@@ -1612,7 +1612,7 @@
 
       <div class="tab-panel" id="panel-about" style="display:none;">
         <section>
-          <h2>About</h2>
+          <h2>About/Feedback</h2>
           <p class="info-text">The Great One Grind Log is an advanced tool built for grinders who want convenience and powerful features all in one place.</p>
           <p class="info-text" style="margin-top:10px;">When I first started Great One grinding, I used a simple counter on my phone &mdash; it worked well enough. But the deeper I got into the grinding playstyle, the more quality-of-life features I found myself wishing existed in one place instead of scattered across notes and memory. Eventually, I was inspired to build this tool.</p>
         </section>
@@ -1672,7 +1672,12 @@
         </section>
 
         <section>
-          <p class="info-note">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
+          <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
+          <div class="share-btn-group" style="margin-top:12px;">
+            <!-- TODO: replace # with the real Google Form URL once created -->
+            <a href="#" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
+            <a href="changelog.html" class="share-btn">📋 View Changelog</a>
+          </div>
         </section>
       </div>
 
@@ -1767,7 +1772,7 @@
     document.getElementById('panel-tool-settings').style.display = tab === 'tool-settings' ? '' : 'none';
     document.getElementById('panel-about').style.display = tab === 'about' ? '' : 'none';
     const resetWrap = document.getElementById('resetBtnWrap');
-    if(resetWrap) resetWrap.style.display = tab === 'counter-tool' ? '' : 'none';
+    if(resetWrap) resetWrap.style.display = tab === 'tool-settings' ? '' : 'none';
     if(tab === 'summary'){ renderStats(); renderChart(); }
     if(tab === 'golog'){ renderGoLog(); }
   }

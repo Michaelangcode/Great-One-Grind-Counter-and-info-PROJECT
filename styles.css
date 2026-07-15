@@ -311,6 +311,7 @@
   .share-btn-group{display:flex; gap:8px; flex-wrap:wrap;}
   .share-btn{padding:7px 14px; border-radius:6px; border:1px solid var(--antler); background:var(--panel2); color:var(--antler); font-family:'Nunito', sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;}
   .share-btn:hover{background:rgba(201,161,74,.12);}
+  a.share-btn{text-decoration:none; display:inline-block;}
 
   .stats-grid{display:flex; gap:12px; flex-wrap:wrap;}
   .stat-box{flex:1 1 130px; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:12px 14px;}
