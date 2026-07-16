@@ -1,6 +1,6 @@
 {
-  "name": "Great One Grind Counter",
-  "short_name": "Grind Counter",
+  "name": "Great One Grind Log",
+  "short_name": "Grind Log",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#000000",

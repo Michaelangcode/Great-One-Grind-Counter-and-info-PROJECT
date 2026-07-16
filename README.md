@@ -1,4 +1,4 @@
-# Great One Grind Counter
+# Great One Grind Log
 
 A hunting grind tracker Progressive Web App.
 
