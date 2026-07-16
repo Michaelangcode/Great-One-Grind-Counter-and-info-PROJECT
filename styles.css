@@ -334,6 +334,8 @@
   .swatch{width:10px; height:10px; border-radius:2px; display:inline-block;}
   .swatch.diamond3{background:var(--diamond3);}
   .swatch.antler{background:var(--antler);}
+  .swatch.total{background:var(--total);}
+  .chart-tooltip{display:none; position:fixed; pointer-events:none; background:#1b2a21; border:1px solid #3a5040; border-radius:6px; padding:5px 10px; font-size:11.5px; color:#fff; white-space:nowrap; z-index:500; box-shadow:0 4px 14px rgba(0,0,0,.5);}
 
   .table-scroll{overflow-x:auto; border:1px solid var(--line); border-radius:6px;}
   table{width:100%; border-collapse:collapse; font-size:13px; min-width:1060px;}

@@ -940,7 +940,7 @@
   function showInfo(title, message, onOk){
     const modal = document.getElementById('confirmModal');
     const box = modal.querySelector('.modal-actions');
-    box.innerHTML = '<button id="modalInfoOk" class="confirm-danger" style="background:var(--blaze)">Got it</button>';
+    box.innerHTML = '<button id="modalInfoOk" class="confirm-merge">Got it</button>';
     document.getElementById('modalText').innerHTML = `<strong style="display:block;margin-bottom:8px;color:var(--antler)">${escapeHtml(title)}</strong>${escapeHtml(message)}`;
     modal.classList.remove('hidden');
     document.getElementById('modalInfoOk').addEventListener('click', () => {
@@ -1015,7 +1015,7 @@
     if(dup){
       const dupName = dup.nickname ? `"${dup.nickname}"` : (sp === NON_GO ? NON_GO : `${sp} — ${mp}`);
       closeWizard();
-      showDuplicateWarning(dupName, sp, mp, p);
+      showDuplicateWarning(dupName);
       return;
     }
     const g = freshGrind(sp, mp, p);
@@ -1031,6 +1031,14 @@
       : ((wizardState.unlistedMap || '').trim() || null);
     const p = wizardState.platform;
 
+    const dup = grinds.find(x => x.status === 'open' && x.species === UNLISTED_GO && x.unlistedName === displayName && x.map === mp && x.platform === p);
+    if(dup){
+      const dupName = dup.nickname ? `"${dup.nickname}"` : `${displayName}${mp ? ' — ' + mp : ''}`;
+      closeWizard();
+      showDuplicateWarning(dupName);
+      return;
+    }
+
     // Always save custom species; only save map if it's a newly typed unique entry
     addCustomSpecies(displayName);
     if(mp && wizardState.unlistedMap && !MAPS.find(m => m.name === mp)){
@@ -1045,17 +1053,11 @@
     activateGrind(g.id);
   }
 
-  function showDuplicateWarning(dupName, sp, mp, p){
-    pendingAction = () => {
-      askConfirm(`Are you sure? This will create a second grind alongside "${dupName}".`, () => {
-        const g = freshGrind(sp, mp, p);
-        grinds.push(g);
-        activateGrind(g.id);
-      });
-    };
-    document.getElementById('modalText').textContent = `You already have a duplicate of this grind: "${dupName}." Do you wish to continue anyway?`;
-    document.getElementById('modalConfirm').textContent = 'Continue';
-    document.getElementById('confirmModal').classList.remove('hidden');
+  function showDuplicateWarning(dupName){
+    showInfo(
+      'Duplicate Grind',
+      `You already have an open grind for this exact species, map, and platform combination: "${dupName}." Switch to it using "Select Other (Open) Grind" instead — a duplicate can't be created.`
+    );
   }
 
   function renderWizard(){
@@ -1428,7 +1430,7 @@
           <div class="tab-group-label">Settings/About</div>
           <div class="tab-group-btns">
             <button class="tab-btn" data-tab="tool-settings">Settings</button>
-            <button class="tab-btn" data-tab="about">About/Feedback</button>
+            <button class="tab-btn" data-tab="about">About</button>
           </div>
         </div>
       </nav>
@@ -1450,6 +1452,7 @@
         </section>
         <section>
           <h2>Trend Across Grinds</h2>
+          <p class="corr-caveat">Filter to one species, map, and platform to see how repeat grinds of that exact combo have trended over time &mdash; leave any set to "All" to include everything.</p>
           <div id="chartArea"></div>
         </section>
         <section>
@@ -1622,13 +1625,13 @@
 
       <div class="tab-panel" id="panel-about" style="display:none;">
         <section>
-          <h2>About/Feedback</h2>
+          <h2>About</h2>
           <p class="info-text">The Great One Grind Log is an advanced tool built for grinders who want convenience and powerful features all in one place.</p>
           <p class="info-text" style="margin-top:10px;">When I first started Great One grinding, I used a simple counter on my phone &mdash; it worked well enough. But the deeper I got into the grinding playstyle, the more quality-of-life features I found myself wishing existed in one place instead of scattered across notes and memory. Eventually, I was inspired to build this tool.</p>
         </section>
 
         <section>
-          <h2>FAQ</h2>
+          <h2>FAQ and Feedback</h2>
 
           <h3 class="how-it-works-subhead">Who is this tool for?</h3>
           <p class="info-text">Everybody &mdash; from people brand new to grinding to seasoned grinders who want more out of their data. The amount of customization means it can fit however you play.</p>
@@ -1641,6 +1644,14 @@
 
           <h3 class="how-it-works-subhead">How was this tool created?</h3>
           <p class="info-text">This tool was created through AI. Under my direction, AI has created many features of the tool; however, I have had a significant hand in the layout, features, informational text, and other parts of the tool.</p>
+
+          <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
+          <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
+          <div class="share-btn-group" style="margin-top:12px;">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLScU90d8Ei4LFA3rb4ypUlC6rddMC9_ZJAhuuoNb7yFagav-zg/viewform" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
+            <a href="changelog.html" class="share-btn">📋 View Changelog</a>
+            <a href="https://ko-fi.com/nyxhunt" target="_blank" rel="noopener" class="share-btn kofi-btn">☕ Support on Ko-fi</a>
+          </div>
         </section>
 
         <section>
@@ -1681,16 +1692,6 @@
             <li>Basic grinding tips and common terminology.</li>
             <li>Male-animal terminology (bucks, boars, bulls, etc.)</li>
           </ul>
-        </section>
-
-        <section>
-          <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
-          <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
-          <div class="share-btn-group" style="margin-top:12px;">
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLScU90d8Ei4LFA3rb4ypUlC6rddMC9_ZJAhuuoNb7yFagav-zg/viewform" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
-            <a href="changelog.html" class="share-btn">📋 View Changelog</a>
-            <a href="https://ko-fi.com/nyxhunt" target="_blank" rel="noopener" class="share-btn kofi-btn">☕ Support on Ko-fi</a>
-          </div>
         </section>
       </div>
 
@@ -2549,40 +2550,141 @@
   function renderChart(){
     const area = document.getElementById('chartArea');
     if(!area) return;
-    const completed = completedGrindsList();
-    if(completed.length === 0){
+    const allCompleted = completedGrindsList();
+    if(allCompleted.length === 0){
       area.innerHTML = `<div class="empty-note">Your trend chart will appear here once you've logged at least one grind.</div>`;
       return;
     }
-    const n = completed.length;
-    const vals = completed.flatMap(e => [totalDiamond(e), totalMaxLevel(e)]);
-    const maxVal = Math.max(1, ...vals);
-    const barW=9, gap=3, groupGap=18;
-    const groupW = barW*2 + gap;
-    const chartH = 170;
-    const totalW = Math.max(340, n*(groupW+groupGap));
-    let bars = '';
-    completed.forEach((e,i) => {
-      const dia=totalDiamond(e), l=totalMaxLevel(e);
-      const x = i*(groupW+groupGap)+10;
-      const series = [{v:dia,color:'var(--diamond3)'},{v:l,color:'var(--antler)'}];
-      series.forEach((s, si) => {
-        const h = (s.v/maxVal)*(chartH-26);
-        const bx = x + si*(barW+gap);
-        bars += `<rect x="${bx}" y="${chartH-h-18}" width="${barW}" height="${h}" fill="${s.color}" rx="2"></rect>`;
-        bars += `<text x="${bx+barW/2}" y="${chartH-h-21}" font-size="7.5" fill="${s.color}" text-anchor="middle" font-family="Nunito">${s.v}</text>`;
-      });
-      bars += `<text x="${x+groupW/2}" y="${chartH-4}" font-size="9.5" fill="var(--muted)" text-anchor="middle" font-family="Nunito">#${e.cycle}</text>`;
-    });
+
+    const speciesSet = [...new Set(allCompleted.map(g => grindSpeciesLabel(g)))].sort();
+    const mapSet = [...new Set(allCompleted.map(g => g.map).filter(Boolean))].sort();
+    const platformSet = [...new Set(allCompleted.map(g => g.platform).filter(Boolean))].sort();
+
+    const prevSpecies = area.dataset.trendSpecies || '';
+    const prevMap = area.dataset.trendMap || '';
+    const prevPlatform = area.dataset.trendPlatform || '';
+    const selSpecies = speciesSet.includes(prevSpecies) ? prevSpecies : '';
+    const selMap = mapSet.includes(prevMap) ? prevMap : '';
+    const selPlatform = platformSet.includes(prevPlatform) ? prevPlatform : '';
+
+    const speciesOpts = `<option value="">All species</option>` + speciesSet.map(s =>
+      `<option value="${escapeAttr(s)}" ${s === selSpecies ? 'selected' : ''}>${escapeHtml(s)}</option>`
+    ).join('');
+    const mapOpts = `<option value="">All maps</option>` + mapSet.map(m =>
+      `<option value="${escapeAttr(m)}" ${m === selMap ? 'selected' : ''}>${escapeHtml(m)}</option>`
+    ).join('');
+    const platformOpts = `<option value="">All platforms</option>` + platformSet.map(p =>
+      `<option value="${escapeAttr(p)}" ${p === selPlatform ? 'selected' : ''}>${escapeHtml(p)}</option>`
+    ).join('');
+
     area.innerHTML = `
-      <div class="chart-scroll">
-        <svg viewBox="0 0 ${totalW} ${chartH}" width="${totalW}" height="${chartH}" style="display:block; min-width:${totalW}px;">${bars}</svg>
-        <div class="legend">
-          <span><span class="swatch diamond3"></span>Diamonds (total)</span>
-          <span><span class="swatch antler"></span>Max-level (total)</span>
+      <div class="compare-controls" style="margin-bottom:14px;">
+        <div class="compare-row">
+          <label class="compare-label">Species</label>
+          <select id="trendSpeciesSel" class="compare-select">${speciesOpts}</select>
+        </div>
+        <div class="compare-row">
+          <label class="compare-label">Map</label>
+          <select id="trendMapSel" class="compare-select">${mapOpts}</select>
+        </div>
+        <div class="compare-row">
+          <label class="compare-label">Platform</label>
+          <select id="trendPlatformSel" class="compare-select">${platformOpts}</select>
         </div>
       </div>
+      <div id="trendChartArea"></div>
     `;
+
+    function draw(){
+      const chartEl = document.getElementById('trendChartArea');
+      if(!chartEl) return;
+
+      const completed = allCompleted
+        .filter(g =>
+          (!selSpecies || grindSpeciesLabel(g) === selSpecies) &&
+          (!selMap || g.map === selMap) &&
+          (!selPlatform || g.platform === selPlatform)
+        )
+        .slice()
+        .sort((a,b) => new Date(a.loggedAt) - new Date(b.loggedAt));
+
+      if(completed.length === 0){
+        chartEl.innerHTML = `<div class="empty-note">No logged grinds match this filter.</div>`;
+        return;
+      }
+
+      const n = completed.length;
+      const vals = completed.flatMap(e => [totalDiamond(e), totalMaxLevel(e), totalKillsOf(e)]);
+      const maxVal = Math.max(1, ...vals);
+      const barW=8, gap=3, groupGap=20;
+      const groupW = barW*3 + gap*2;
+      const plotH = 132;
+      const labelH = 24;
+      const chartH = plotH + labelH;
+      const totalW = Math.max(340, n*(groupW+groupGap) + 20);
+      let bars = '';
+      completed.forEach((e,i) => {
+        const dia=totalDiamond(e), l=totalMaxLevel(e), tk=totalKillsOf(e);
+        const x = i*(groupW+groupGap)+14;
+        const series = [
+          {v:dia, color:'var(--diamond3)', label:'Diamonds'},
+          {v:l,   color:'var(--antler)',   label:'Max-Level'},
+          {v:tk,  color:'var(--total)',    label:'Total Kills'}
+        ];
+        series.forEach((s, si) => {
+          const h = (s.v/maxVal)*(plotH-20);
+          const bx = x + si*(barW+gap);
+          bars += `<rect x="${bx}" y="${plotH-h}" width="${barW}" height="${h}" fill="${s.color}" rx="2" data-tip="${escapeAttr(s.label)}: ${s.v}"></rect>`;
+          bars += `<text x="${bx+barW/2}" y="${plotH-h-3}" font-size="7" fill="${s.color}" text-anchor="middle" font-family="Nunito" data-tip="${escapeAttr(s.label)}: ${s.v}">${s.v}</text>`;
+        });
+        const rawName = e.nickname || e.defaultName || grindSpeciesLabel(e);
+        const labelX = x + groupW/2;
+        const labelY = plotH + 15;
+        bars += `<text x="${labelX}" y="${labelY}" font-size="9.5" fill="var(--muted)" text-anchor="middle" font-family="Nunito" data-tip="${escapeAttr(rawName)}">#${i+1}</text>`;
+      });
+      chartEl.innerHTML = `
+        <div class="chart-scroll">
+          <svg viewBox="0 0 ${totalW} ${chartH}" width="${totalW}" height="${chartH}" style="display:block; min-width:${totalW}px;">${bars}</svg>
+          <div class="legend">
+            <span><span class="swatch diamond3"></span>Diamonds</span>
+            <span><span class="swatch antler"></span>Max-Level</span>
+            <span><span class="swatch total"></span>Total Kills</span>
+          </div>
+        </div>
+        <div class="chart-tooltip" id="trendTooltip"></div>
+      `;
+
+      const tooltip = document.getElementById('trendTooltip');
+      chartEl.querySelectorAll('[data-tip]').forEach(el => {
+        el.style.cursor = 'default';
+        el.addEventListener('mouseenter', () => {
+          tooltip.textContent = el.getAttribute('data-tip');
+          tooltip.style.display = 'block';
+        });
+        el.addEventListener('mousemove', (ev) => {
+          tooltip.style.left = (ev.clientX + 12) + 'px';
+          tooltip.style.top = (ev.clientY + 12) + 'px';
+        });
+        el.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+      });
+    }
+
+    draw();
+
+    document.getElementById('trendSpeciesSel').addEventListener('change', function(){
+      area.dataset.trendSpecies = this.value;
+      renderChart();
+    });
+    document.getElementById('trendMapSel').addEventListener('change', function(){
+      area.dataset.trendMap = this.value;
+      renderChart();
+    });
+    document.getElementById('trendPlatformSel').addEventListener('change', function(){
+      area.dataset.trendPlatform = this.value;
+      renderChart();
+    });
   }
 
 
