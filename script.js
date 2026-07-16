@@ -1626,15 +1626,23 @@
       <div class="tab-panel" id="panel-about" style="display:none;">
         <section>
           <h2>About</h2>
-          <p class="info-text">The Great One Grind Log is an advanced tool built for grinders who want convenience and powerful features all in one place.</p>
-          <p class="info-text" style="margin-top:10px;">When I first started Great One grinding, I used a simple counter on my phone &mdash; it worked well enough. But the deeper I got into the grinding playstyle, the more quality-of-life features I found myself wishing existed in one place instead of scattered across notes and memory. Eventually, I was inspired to build this tool.</p>
+          <div class="about-profile-row">
+            <img src="NyXHunt.png" alt="NyXHunt" class="about-avatar">
+            <div class="about-profile-info">
+              <div class="about-profile-name">NyXHunt</div>
+              <a href="https://www.youtube.com/@NyXtheHunter" target="_blank" rel="noopener" class="about-profile-link">▶ YouTube Channel</a>
+            </div>
+          </div>
+          <p class="info-text">Hi! My name is NyXHunts, I create content on theHunter Call of the Wild, and I'm also the creator of The Great One Grind Log.</p>
+          <p class="info-text" style="margin-top:10px;">When I first started Great One grinding, I used a simple counter on my phone — it worked well enough. But the deeper I got into the grinding playstyle, the more quality-of-life features I found myself wishing existed in one place instead of scattered across notes and memory. Eventually, I was inspired to build this tool: The Great One Grind Log.</p>
+          <p class="info-text" style="margin-top:10px;">The Great One Grind Log is an advanced tool packed with features and built specifically for grinders who want more convenience and simplicity in their grinds. Personally, it's been extremely useful for me and my playstyle, allowing me to count kills and store information without having to search for it each time. I hope that you love this tool and that it is as helpful to you as it is to me! Happy hunting!</p>
         </section>
 
         <section>
           <h2>FAQ and Feedback</h2>
 
           <h3 class="how-it-works-subhead">Who is this tool for?</h3>
-          <p class="info-text">Everybody &mdash; from people brand new to grinding to seasoned grinders who want more out of their data. The amount of customization means it can fit however you play.</p>
+          <p class="info-text">Everybody — this tool is built for the Hunter Call of the Wild community, from brand new grinders to seasoned pros. If grinding is your playstyle, this tool is an amazing addition to your toolbox.</p>
 
           <h3 class="how-it-works-subhead">What makes it different from notes or a spreadsheet?</h3>
           <p class="info-text">You could technically replicate many of this tool's features by hand, but this keeps everything in one place and does the math for you &mdash; no manual tallying or separate spreadsheet to maintain.</p>
@@ -1643,7 +1651,7 @@
           <p class="info-text">Yes. It saves me time and a headache, and using it for my own grinds allows me to understand what features should be added for the community!</p>
 
           <h3 class="how-it-works-subhead">How was this tool created?</h3>
-          <p class="info-text">This tool was created through AI. Under my direction, AI has created many features of the tool; however, I have had a significant hand in the layout, features, informational text, and other parts of the tool.</p>
+          <p class="info-text">(Disclaimer) This tool was created through AI. I only claim creation through idea/concept and direction. I have had a significant hand in the layout, features, informational text, and processes; however, it is AI that has created the whole display that the user interfaces with. I have also heavily used AI to assist me in the process of making this tool available to the public.</p>
 
           <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
           <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
