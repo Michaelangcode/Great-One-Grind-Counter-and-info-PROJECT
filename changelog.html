@@ -6,12 +6,13 @@
 <title>Changelog — Great One Grind Counter</title>
 <link rel="icon" type="image/png" href="icon192.png">
 <style>
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:760px;margin:0 auto;padding:32px 20px;line-height:1.6;color:#222;background:#fff;}
-  h1{color:#1a1a1a;}
-  h2{margin-top:32px;color:#1a1a1a;border-bottom:1px solid #d4af37;padding-bottom:6px;}
+  @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Nunito:wght@400;500;600;700;800&display=swap');
+  body{font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:760px;margin:0 auto;padding:32px 20px;line-height:1.6;color:#e9e4d6;background:#121c16;}
+  h1{font-family:'Merriweather',serif;font-weight:900;color:#e9e4d6;}
+  h2{font-family:'Merriweather',serif;font-weight:700;margin-top:32px;color:#e9e4d6;border-bottom:1px solid #c9a14a;padding-bottom:6px;}
   ul{padding-left:22px;}
-  a{color:#8a6d1f;}
-  footer{margin-top:48px;font-size:13px;color:#666;}
+  a{color:#c9a14a;}
+  footer{margin-top:48px;font-size:13px;color:#8fa089;}
 </style>
 </head>
 <body>
@@ -25,11 +26,13 @@
   <li>Removed Max-Weight Est tracking entirely — from the Advanced counter, All Grinds Summary, trend chart, Correlation, Grind Comparison, CSV export, and the Grind Log</li>
   <li>Renamed the Advanced counter's "Max-Level" button to "Trolls" and simplified its cascading logic</li>
   <li>Removed on-counter hint tooltips, now unnecessary with the simplified cascading</li>
-  <li>Fixed the Correlation section's math to compare each kill type against the rest of the grind instead of a total that already includes it</li>
-  <li>Removed the Correlation section entirely — Diamonds and Max-Level kills overlap by construction, which made the underlying math unreliable even after the fix above</li>
+  <li>Removed the Correlation section entirely — Diamonds and Max-Level kills overlap by construction, which made the underlying math unreliable</li>
   <li>Removed separate Basic/Advanced counter styles — there's now one unified counter (Diamond / Trolls / Total Kills), and all Great One grinds (past and future) now feed into All Grinds Summary stats, trend, and comparison</li>
   <li>Added the ability to share a logged grind or your All Grinds overview as a branded image, with native share-sheet support and a download fallback</li>
   <li>Replaced the placeholder app icon with the tool's new logo (hexagon + antler mark)</li>
+  <li>Moved backup/import controls out of the header into a new "Backup & Transfer Data" section under Settings</li>
+  <li>Importing a backup now compares your current data to the file and lets you choose Merge (recommended) or Overwrite, instead of overwriting automatically</li>
+  <li>Backups now also include keybinds, custom species/maps, and settings — not just grinds — for a full-parity transfer between browsers/devices</li>
 </ul>
 
 <h2>1.2.0 — Phase 2: Netlify Hosting</h2>

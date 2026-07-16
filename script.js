@@ -1393,22 +1393,6 @@
         <h1>GREAT ONE<br><span>GRIND LOG</span></h1>
         <p class="subtitle">Track your (Great One) Grinds using this highly-specialized and detailed counter. Count kills, get averages, and log grinds!</p>
         <div class="sync-status" id="syncStatus"></div>
-        <div class="backup-toolbar">
-          <div class="backup-item">
-            <button id="exportBtn" class="backup-btn export-btn">⬇ Export backup</button>
-            <p class="backup-desc">Downloads a full JSON backup of all your grinds and settings. Use this to save your data before clearing your browser, or to move it to another device.</p>
-          </div>
-          <div class="backup-item">
-            <button id="importBtn" class="backup-btn import-btn">⬆ Import backup</button>
-            <p class="backup-desc">Restores a previously exported JSON backup. This will replace all current data — import first, then verify before making changes.</p>
-          </div>
-          <div class="backup-item">
-            <button id="exportCsvBtn" class="backup-btn csv-btn">⬇ Export CSV</button>
-            <p class="backup-desc">Downloads your completed grinds as a spreadsheet. Open in Excel, Google Sheets, or Numbers to sort, filter, and build your own charts.</p>
-          </div>
-          <input type="file" id="importFile" accept="application/json" style="display:none">
-        </div>
-        <div id="importMsg" class="import-msg"></div>
       </header>
 
       <div class="live-stat" id="liveStatWidget" style="display:none;">
@@ -1608,6 +1592,27 @@
             <span style="font-size:12px; color:var(--muted);">Switch between dark and light color themes.</span>
           </div>
         </section>
+
+        <section>
+          <h2>Backup &amp; Transfer Data</h2>
+          <p class="info-text">Your grinds, keybinds, custom species/maps, and other settings live only in this browser &mdash; they won't sync anywhere on their own. Export a backup to save a copy somewhere secure, or to move everything to a different browser or device. Import that file (here or elsewhere) any time to bring it back.</p>
+          <div class="backup-toolbar" style="margin-top:12px;">
+            <div class="backup-item">
+              <button id="exportBtn" class="backup-btn export-btn">⬇ Export backup</button>
+              <p class="backup-desc">Downloads a full JSON backup of all your grinds (open and logged), keybinds, custom species/maps, and settings.</p>
+            </div>
+            <div class="backup-item">
+              <button id="importBtn" class="backup-btn import-btn">⬆ Import backup</button>
+              <p class="backup-desc">Restores a previously exported JSON backup &mdash; choose to merge with or overwrite your current data.</p>
+            </div>
+            <div class="backup-item">
+              <button id="exportCsvBtn" class="backup-btn csv-btn">⬇ Export CSV</button>
+              <p class="backup-desc">Downloads your completed grinds as a spreadsheet. Open in Excel, Google Sheets, or Numbers to sort, filter, and build your own charts.</p>
+            </div>
+            <input type="file" id="importFile" accept="application/json" style="display:none">
+          </div>
+          <div id="importMsg" class="import-msg" style="margin-top:8px;"></div>
+        </section>
       </div>
 
       <div class="tab-panel" id="panel-about" style="display:none;">
@@ -1672,10 +1677,10 @@
         </section>
 
         <section>
+          <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
           <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
           <div class="share-btn-group" style="margin-top:12px;">
-            <!-- TODO: replace # with the real Google Form URL once created -->
-            <a href="#" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLScU90d8Ei4LFA3rb4ypUlC6rddMC9_ZJAhuuoNb7yFagav-zg/viewform" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
             <a href="changelog.html" class="share-btn">📋 View Changelog</a>
           </div>
         </section>
@@ -2581,20 +2586,29 @@
   function clampInt(v){ const n = parseInt(v,10); return isNaN(n)||n<0 ? 0 : n; }
 
   function exportData(){
-    const payload = { exportedAt: new Date().toISOString(), grinds, activeGrindId };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `great-one-grind-log-${new Date().toISOString().slice(0,10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    hasUnsavedChanges = false;
-    if(!storageAvailable) setSyncStatus('unavailable');
-    const msg = document.getElementById('importMsg');
-    if(msg){ msg.textContent = 'Backup downloaded.'; setTimeout(() => { if(msg.textContent === 'Backup downloaded.') msg.textContent=''; }, 4000); }
+    const count = grinds.length;
+    askConfirm(`This will download a backup file containing all ${count} of your current grind${count!==1?'s':''} (open and logged), plus your keyboard sync bindings, custom species/maps, and other settings. Save it somewhere safe — you can use it to restore your data or move it to another browser/device.`, () => {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        grinds, activeGrindId,
+        keybinds,
+        settings: { twoStepDelete },
+        customDefaults: loadCustomDefaults()
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `great-one-grind-log-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      hasUnsavedChanges = false;
+      if(!storageAvailable) setSyncStatus('unavailable');
+      const msg = document.getElementById('importMsg');
+      if(msg){ msg.textContent = 'Backup downloaded.'; setTimeout(() => { if(msg.textContent === 'Backup downloaded.') msg.textContent=''; }, 4000); }
+    });
   }
 
   function exportCsv(){
@@ -2876,6 +2890,71 @@
     downloadCanvasPNG(canvas, filename);
   }
 
+  function mergeIncomingGrinds(incomingGrinds){
+    const existingIds = new Set(grinds.map(g => g.id));
+    const toAdd = incomingGrinds.filter(g => !existingIds.has(g.id));
+    grinds = grinds.concat(toAdd);
+    renumberDefaultNames();
+    return toAdd.length;
+  }
+
+  function mergeCustomDefaults(incomingCustom){
+    if(!incomingCustom) return 0;
+    const current = loadCustomDefaults();
+    let added = 0;
+    const speciesNames = new Set(current.species.map(s => s.name));
+    (incomingCustom.species||[]).forEach(s => {
+      const entry = typeof s === 'string' ? {name:s, maxLevel:3} : s;
+      if(entry && entry.name && !speciesNames.has(entry.name)){
+        current.species.push(entry); speciesNames.add(entry.name); added++;
+      }
+    });
+    const mapNames = new Set(current.maps);
+    (incomingCustom.maps||[]).forEach(m => {
+      if(m && !mapNames.has(m)){ current.maps.push(m); mapNames.add(m); added++; }
+    });
+    if(added > 0) saveCustomDefaults(current);
+    return added;
+  }
+
+  function mergeKeybinds(incomingKeybinds){
+    if(!incomingKeybinds) return 0;
+    let added = 0;
+    Object.entries(incomingKeybinds).forEach(([target, key]) => {
+      if(!keybinds[target]){ keybinds[target] = key; added++; }
+    });
+    if(added > 0) saveKeybinds();
+    return added;
+  }
+
+  function showImportChoiceModal(currentCount, incomingCount, onMerge, onOverwrite){
+    const modal = document.getElementById('confirmModal');
+    const box = modal.querySelector('.modal-actions');
+    const textEl = document.getElementById('modalText');
+    textEl.textContent = `You have ${currentCount} grind${currentCount!==1?'s':''} saved; this file has ${incomingCount}. Double-check this is the right file and the action you actually want — it can't be undone. Merge (recommended) adds what's new (grinds, custom species/maps, keybinds) without touching anything you already have. Overwrite replaces everything — grinds, keybinds, custom options, and settings — with this file's contents.`;
+    box.style.flexWrap = 'wrap';
+    box.innerHTML = '<button id="importCancelBtn">Cancel</button><button id="importOverwriteBtn" class="confirm-danger">Overwrite</button><button id="importMergeBtn" class="confirm-merge">Merge</button>';
+    modal.classList.remove('hidden');
+
+    document.getElementById('importCancelBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      box.style.flexWrap = '';
+      restoreConfirmModal();
+    });
+    document.getElementById('importOverwriteBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      box.style.flexWrap = '';
+      restoreConfirmModal();
+      onOverwrite();
+    });
+    document.getElementById('importMergeBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      box.style.flexWrap = '';
+      restoreConfirmModal();
+      onMerge();
+    });
+  }
+
   function importData(file){
     const reader = new FileReader();
     reader.onload = () => {
@@ -2891,15 +2970,34 @@
           if(msg) msg.textContent = "That file doesn't look like a valid backup.";
           return;
         }
-        askConfirm('Import this backup? It will replace all current grinds.', async () => {
-          grinds = incoming.grinds;
-          activeGrindId = incoming.activeGrindId;
-          returnToGrindId = null; browsingOpenGrinds = false; editingId = null;
-          markDirty();
-          await saveNow();
-          renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
-          if(msg) msg.textContent = 'Backup imported.';
-        });
+        const incomingKeybinds = (parsed.keybinds && typeof parsed.keybinds === 'object') ? parsed.keybinds : null;
+        const incomingSettings = (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : null;
+        const incomingCustomDefaults = (parsed.customDefaults && typeof parsed.customDefaults === 'object') ? parsed.customDefaults : null;
+
+        showImportChoiceModal(grinds.length, incoming.grinds.length,
+          async () => {
+            const added = mergeIncomingGrinds(incoming.grinds);
+            const addedCustom = mergeCustomDefaults(incomingCustomDefaults);
+            const addedKeys = mergeKeybinds(incomingKeybinds);
+            markDirty();
+            await saveNow();
+            renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
+            const extras = (addedCustom || addedKeys) ? ', plus custom options/keybinds' : '';
+            if(msg) msg.textContent = `Merged — added ${added} new grind${added!==1?'s':''}${extras}.`;
+          },
+          async () => {
+            grinds = incoming.grinds;
+            activeGrindId = incoming.activeGrindId;
+            returnToGrindId = null; browsingOpenGrinds = false; editingId = null;
+            if(incomingKeybinds){ keybinds = incomingKeybinds; saveKeybinds(); }
+            if(incomingSettings){ twoStepDelete = incomingSettings.twoStepDelete === true; saveSettings(); }
+            if(incomingCustomDefaults){ saveCustomDefaults({ species: incomingCustomDefaults.species||[], maps: incomingCustomDefaults.maps||[] }); }
+            markDirty();
+            await saveNow();
+            renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
+            if(msg) msg.textContent = 'Backup imported (overwrite).';
+          }
+        );
       }catch(e){
         if(msg) msg.textContent = "Couldn't read that file.";
       }
