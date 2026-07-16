@@ -1390,7 +1390,10 @@
   function buildShell(){
     root.innerHTML = `
       <header class="masthead">
-        <h1>GREAT ONE<br><span>GRIND LOG</span></h1>
+        <div class="masthead-title-row">
+          <img src="icon192.png" alt="Great One Grind Log logo" class="masthead-logo">
+          <h1>GREAT ONE<br><span>GRIND LOG</span></h1>
+        </div>
         <p class="subtitle">Track your (Great One) Grinds using this highly-specialized and detailed counter. Count kills, get averages, and log grinds!</p>
         <div class="sync-status" id="syncStatus"></div>
       </header>
@@ -1509,6 +1512,8 @@
           <p class="info-text" style="margin-top:10px;">From there you can fill in trophy details &mdash; hunt result, weight, fur, rack/antlers, personal notes &mdash; right away or later, and edit them anytime.</p>
           <p class="info-text" style="margin-top:10px;">The Grind Log lets you view any grind's full details and use the search/filter tool to find specific entries quickly by name, species, map, platform, or notes.</p>
           <p class="info-text" style="margin-top:10px;">Nothing's locked in: reopen the counter on any Grind Log card with <strong>Edit Counter</strong> to fix numbers after the fact, or use <strong>Revert to Open Grind</strong> if you logged it too early or by mistake.</p>
+          <p class="info-text" style="margin-top:10px;">Any Grind Log card can be turned into a shareable image with <strong>Share</strong> or <strong>Download</strong> &mdash; Share opens your device's native share sheet where available, and falls back to a download otherwise. Your full All Grinds overview can be shared or downloaded the same way from the All Grinds Summary tab.</p>
+          <p class="info-text" style="margin-top:10px;">Everything &mdash; grinds, keybinds, custom species/maps, and settings &mdash; auto-saves and syncs continuously as you use the tool, so nothing is lost if a tab closes unexpectedly. Use the Export/Import backup tools in Settings to move a full copy of your data to another browser or device.</p>
         </section>
 
         <section>
@@ -1623,7 +1628,23 @@
         </section>
 
         <section>
-          <h2>The Tool Has Four Parts</h2>
+          <h2>FAQ</h2>
+
+          <h3 class="how-it-works-subhead">Who is this tool for?</h3>
+          <p class="info-text">Everybody &mdash; from people brand new to grinding to seasoned grinders who want more out of their data. The amount of customization means it can fit however you play.</p>
+
+          <h3 class="how-it-works-subhead">What makes it different from notes or a spreadsheet?</h3>
+          <p class="info-text">You could technically replicate many of this tool's features by hand, but this keeps everything in one place and does the math for you &mdash; no manual tallying or separate spreadsheet to maintain.</p>
+
+          <h3 class="how-it-works-subhead">Do I use this tool myself?</h3>
+          <p class="info-text">Yes. It saves me time and a headache, and using it for my own grinds allows me to understand what features should be added for the community!</p>
+
+          <h3 class="how-it-works-subhead">How was this tool created?</h3>
+          <p class="info-text">This tool was created through AI. Under my direction, AI has created many features of the tool; however, I have had a significant hand in the layout, features, informational text, and other parts of the tool.</p>
+        </section>
+
+        <section>
+          <h2>The Basic Idea</h2>
 
           <h3 class="how-it-works-subhead">1. The Counter</h3>
           <p class="info-text">The counter is simple to use but does a lot under the hood, and is full of personalized customization.</p>
@@ -1640,6 +1661,8 @@
             <li>When you log a Great One, you can also fill in trophy details &mdash; hunt result, weight, fur, rack/antlers, personal notes &mdash; right away or later.</li>
             <li>From the Grind Log, you can view any grind's full details and use the filter tool to find specific ones quickly.</li>
             <li>Nothing's locked in. Edit any logged grind's details anytime, or revert it back into an Open Grind in the counter if you logged it too early.</li>
+            <li>Share or download any logged grind &mdash; or your whole All Grinds overview &mdash; as a branded shareable image, right from the Grind Log.</li>
+            <li>Your data auto-saves and syncs continuously as you play, so logged grinds and trophy details are safe even if a tab closes or you switch devices (with a backup export/import for full transfers).</li>
           </ul>
 
           <h3 class="how-it-works-subhead">3. Analytics</h3>
@@ -1661,27 +1684,12 @@
         </section>
 
         <section>
-          <h2>FAQ</h2>
-
-          <h3 class="how-it-works-subhead">Who is this tool for?</h3>
-          <p class="info-text">Everybody &mdash; from people brand new to grinding to seasoned grinders who want more out of their data. The amount of customization means it can fit however you play.</p>
-
-          <h3 class="how-it-works-subhead">What makes it different from notes or a spreadsheet?</h3>
-          <p class="info-text">You could technically replicate many of this tool's features by hand, but this keeps everything in one place and does the math for you &mdash; no manual tallying or separate spreadsheet to maintain.</p>
-
-          <h3 class="how-it-works-subhead">Do I use this tool myself?</h3>
-          <p class="info-text">Yes. It saves me time and a headache, and using it for my own grinds allows me to understand what features should be added for the community!</p>
-
-          <h3 class="how-it-works-subhead">How was this tool created?</h3>
-          <p class="info-text">This tool was created through AI. Under my direction, AI has created many features of the tool; however, I have had a significant hand in the layout, features, informational text, and other parts of the tool.</p>
-        </section>
-
-        <section>
           <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
           <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
           <div class="share-btn-group" style="margin-top:12px;">
             <a href="https://docs.google.com/forms/d/e/1FAIpQLScU90d8Ei4LFA3rb4ypUlC6rddMC9_ZJAhuuoNb7yFagav-zg/viewform" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
             <a href="changelog.html" class="share-btn">📋 View Changelog</a>
+            <a href="https://ko-fi.com/nyxhunt" target="_blank" rel="noopener" class="share-btn kofi-btn">☕ Support on Ko-fi</a>
           </div>
         </section>
       </div>
