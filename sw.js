@@ -1,4 +1,4 @@
-const CACHE_NAME = 'grind-tracker-v5';
+const CACHE_NAME = 'grind-tracker-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,9 @@ const ASSETS = [
   './script.js',
   './manifest.json',
   './icon192.png',
-  './icon512.png'
+  './icon512.png',
+  './icon192_dock.png',
+  './icon512_dock.png'
 ];
 
 self.addEventListener('install', (e) => {
