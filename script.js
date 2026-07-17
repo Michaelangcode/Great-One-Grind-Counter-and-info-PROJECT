@@ -6,6 +6,12 @@
   const NON_GO = 'Non-Great One Grind';
   const UNLISTED_GO = 'Unlisted Great One';
   const CUSTOM_DEFAULTS_KEY = 'goGrind:customDefaults';
+  // Only these targets have a visible counter/sync control today. Older versions of the tool
+  // let keys bind to now-removed counters (e.g. the old split-tier Diamond Lv2/4/8 button) —
+  // a leftover binding like that fires silently on every matching keypress with nothing on
+  // screen to show it, quietly inflating Diamond/Total Kills. Anything outside this list gets
+  // stripped wherever keybinds enter the app (load, merge import, overwrite import).
+  const VALID_KEYBIND_TARGETS = ['diamondLvl3', 'maxLevelOnly', 'other', 'rareCount'];
   const PLATFORMS = ['PC','PlayStation','Xbox'];
   const SPECIES = ['Black Bear','Fallow Deer','Gray Wolf','Jaguar','Moose','Mule Deer','Red Deer','Red Fox','Ring-Necked Pheasant','Roe Deer','Tahr','Whitetail Deer','Wild Boar'];
   const MAPS = [
@@ -57,14 +63,26 @@
   let hasUnsavedChanges = false;
   let keybinds = {}; // { target: key }
   let twoStepDelete = false; // true = delete after 1 confirm only; false (default) = 2 confirms
+  let buzzDefaultOn = false; // default state for new grinds' hotkey buzz feedback
+  let rareDefaultOn = false; // default state for new grinds' rare fur tracking
+  let hotkeySound = 'click'; // which synthesized sound plays on hotkey use: ding | click | thock | pop | blip
   let sessionGoal = null;       // { goal: number, killsAtStart: number } — resets on grind switch/end/GO log
   let sessionGoalDone = false;  // true when goal reached, show !
 
+  const VALID_HOTKEY_SOUNDS = ['ding', 'click', 'thock', 'pop', 'blip'];
   function loadSettings(){
-    try{ const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}'); twoStepDelete = s.twoStepDelete === true; }catch(e){ twoStepDelete = false; }
+    try{
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}');
+      twoStepDelete = s.twoStepDelete === true;
+      buzzDefaultOn = s.buzzDefaultOn === true;
+      // Rare Fur tracking defaults ON for brand-new installs (no settings ever saved yet).
+      // Anyone who already has a saved preference (including an explicit off) keeps it.
+      rareDefaultOn = s.rareDefaultOn === undefined ? true : s.rareDefaultOn === true;
+      hotkeySound = VALID_HOTKEY_SOUNDS.includes(s.hotkeySound) ? s.hotkeySound : 'click';
+    }catch(e){ twoStepDelete = false; buzzDefaultOn = false; rareDefaultOn = true; hotkeySound = 'click'; }
   }
   function saveSettings(){
-    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify({ twoStepDelete })); }catch(e){}
+    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify({ twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound })); }catch(e){}
   }
   function loadCustomDefaults(){
     try{
@@ -174,7 +192,8 @@
       defaultName: autoName,
       maxLevel: maxLevelForSpecies(species),
       lvl89toggle: false,
-      diamondLvl3:0, diamondLvl2:0, maxLevelOnly:0, maxWeightOnly:0, other:0, rareCount:0, rareTracking:false,
+      diamondLvl3:0, diamondLvl2:0, maxLevelOnly:0, maxWeightOnly:0, other:0, rareCount:0, rareTracking:rareDefaultOn,
+      buzzEnabled: buzzDefaultOn,
       counterMode: 'basic',
       notes:'', createdAt:now, lastUsedAt:now, loggedAt:null, cycle:null
     };
@@ -195,6 +214,7 @@
       loggedAt:g.loggedAt||null, cycle: typeof g.cycle === 'number' ? g.cycle : null,
       trophy: g.trophy || null,
       rareCount: g.rareCount||0, rareTracking: g.rareTracking||false,
+      buzzEnabled: g.buzzEnabled === true,
       counterMode: g.counterMode === 'basic' ? 'basic' : 'advanced',
       unlistedName: g.unlistedName || ''
     };
@@ -517,6 +537,22 @@
       btn.addEventListener('touchcancel', stopHold);
     });
 
+    function inlineAfterApply(){
+      renderInlineCounters(g, grindId);
+      if(g.id === activeGrindId) renderLiveStat();
+      markDirty(); scheduleSave();
+      const statRow = document.querySelector(`#go-inline-counter-${grindId}`)?.closest('.go-log-card')?.querySelector('.go-log-stats-row');
+      if(statRow) updateGoLogStatRow(g, statRow);
+    }
+    wireEditableCount(document.getElementById(`ic-${grindId}-diamondLvl3Count`), 'Diamond', () => g,
+      gg => totalDiamond(gg), (gg,val) => { gg.diamondLvl3 = Math.max(0, val - (gg.diamondLvl2||0)); }, inlineAfterApply);
+    wireEditableCount(document.getElementById(`ic-${grindId}-maxLevelCount`), 'Trolls', () => g,
+      gg => gg.maxLevelOnly||0, (gg,val) => { gg.maxLevelOnly = val; }, inlineAfterApply);
+    wireEditableCount(document.getElementById(`ic-${grindId}-totalCount`), 'Total Kills', () => g,
+      gg => totalKillsOf(gg), (gg,val) => { const dia = totalDiamond(gg); const troll = gg.maxLevelOnly||0; gg.other = Math.max(0, val - dia - troll); }, inlineAfterApply);
+    wireEditableCount(document.getElementById(`ic-${grindId}-rareCount`), 'Rare Fur', () => g,
+      gg => gg.rareCount||0, (gg,val) => { gg.rareCount = val; }, inlineAfterApply);
+
     // Wire rare toggle
     const rareToggleEl = panel.querySelector('#rareToggle');
     if(rareToggleEl){
@@ -620,16 +656,22 @@
     if(totBreak){ totBreak.textContent = `= ${dia} diamond + ${g.maxLevelOnly||0} troll + ${g.other||0} other`; totBreak.dataset.tip = totBreak.textContent; }
   }
 
-  function updateGoLogStatRow(g, statRow){
-    statRow.innerHTML = `
+  function goLogStatsRowHTML(g){
+    const rareItem = g.rareTracking ? `
+      <span class="go-stat-sep">·</span>
+      <span class="go-stat-item go-counter-rare"><span class="go-counter-lbl">Rares</span> <span class="go-counter-val">${g.rareCount||0}</span></span>` : '';
+    return `
       <span class="go-stat-item"><span class="go-counter-lbl">Dia</span> <span class="go-counter-val">${totalDiamond(g)}</span></span>
       <span class="go-stat-sep">·</span>
       <span class="go-stat-item"><span class="go-counter-lbl">Max-Lvl</span> <span class="go-counter-val">${totalMaxLevel(g)}</span></span>
       <span class="go-stat-sep">·</span>
-      <span class="go-stat-item go-counter-total"><span class="go-counter-lbl">Total</span> <span class="go-counter-val">${totalKillsOf(g)}</span></span>
+      <span class="go-stat-item go-counter-total"><span class="go-counter-lbl">Total</span> <span class="go-counter-val">${totalKillsOf(g)}</span></span>${rareItem}
       <span class="go-stat-sep">·</span>
       <span class="go-stat-item go-counter-rate"><span class="go-counter-lbl">Avg kills/dia</span> <span class="go-counter-val">${totalDiamond(g) === 0 ? '—' : (totalKillsOf(g)/totalDiamond(g)).toFixed(2)}</span></span>
     `;
+  }
+  function updateGoLogStatRow(g, statRow){
+    statRow.innerHTML = goLogStatsRowHTML(g);
   }
 
   function renderGoLog(){
@@ -728,15 +770,7 @@
             <div class="go-log-body">
               <div class="go-log-left">
                 <div class="go-log-date">Logged: ${formatDate(g.loggedAt)}</div>
-                <div class="go-log-stats-row">
-                  <span class="go-stat-item"><span class="go-counter-lbl">Dia</span> <span class="go-counter-val">${totalDiamond(g)}</span></span>
-                  <span class="go-stat-sep">·</span>
-                  <span class="go-stat-item"><span class="go-counter-lbl">Max-Lvl</span> <span class="go-counter-val">${totalMaxLevel(g)}</span></span>
-                  <span class="go-stat-sep">·</span>
-                  <span class="go-stat-item go-counter-total"><span class="go-counter-lbl">Total</span> <span class="go-counter-val">${totalKillsOf(g)}</span></span>
-                  <span class="go-stat-sep">·</span>
-                  <span class="go-stat-item go-counter-rate"><span class="go-counter-lbl">Avg kills/dia</span> <span class="go-counter-val">${totalDiamond(g) === 0 ? '—' : (totalKillsOf(g)/totalDiamond(g)).toFixed(2)}</span></span>
-                </div>
+                <div class="go-log-stats-row">${goLogStatsRowHTML(g)}</div>
                 <div class="go-log-toggle" data-id="${g.id}">▸ Trophy Details</div>
                 <div class="go-log-detail hidden" id="go-detail-${g.id}">
                   <div class="go-log-fields">
@@ -1602,6 +1636,32 @@
         </section>
 
         <section>
+          <h2>Grind Defaults</h2>
+          <p class="info-text">Sets the starting state for brand-new grinds. You can still turn either on or off per-grind at any time from the counter screen — this only controls what a new grind starts with.</p>
+          <div class="settings-toggle-row">
+            <span class="grind-meta-label">Buzz/Ding on hotkey use</span>
+            <button class="toggle-switch ${buzzDefaultOn ? 'on' : ''}" id="buzzDefaultToggle" role="switch" aria-checked="${buzzDefaultOn ? 'true' : 'false'}" aria-label="Toggle default buzz and ding on hotkey use for new grinds"><span class="toggle-switch-knob"></span></button>
+          </div>
+          <div class="settings-toggle-row">
+            <span class="grind-meta-label">Hotkey sound</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <select id="hotkeySoundSelect" class="compare-select">
+                <option value="blip" ${hotkeySound==='blip'?'selected':''}>Blip</option>
+                <option value="click" ${hotkeySound==='click'?'selected':''}>Click</option>
+                <option value="ding" ${hotkeySound==='ding'?'selected':''}>Ding</option>
+                <option value="thock" ${hotkeySound==='thock'?'selected':''}>Heavy Click</option>
+                <option value="pop" ${hotkeySound==='pop'?'selected':''}>Pop</option>
+              </select>
+              <button id="hotkeySoundPreviewBtn" type="button" class="secondary-btn" style="padding:6px 12px; font-size:12px;">▶ Preview</button>
+            </div>
+          </div>
+          <div class="settings-toggle-row">
+            <span class="grind-meta-label">Rare Fur tracking</span>
+            <button class="toggle-switch ${rareDefaultOn ? 'on' : ''}" id="rareDefaultToggle" role="switch" aria-checked="${rareDefaultOn ? 'true' : 'false'}" aria-label="Toggle default rare fur tracking for new grinds"><span class="toggle-switch-knob"></span></button>
+          </div>
+        </section>
+
+        <section>
           <h2>Backup &amp; Transfer Data</h2>
           <p class="info-text">Your grinds, keybinds, custom species/maps, and other settings live only in this browser &mdash; they won't sync anywhere on their own. Export a backup to save a copy somewhere secure, or to move everything to a different browser or device. Import that file (here or elsewhere) any time to bring it back.</p>
           <div class="backup-toolbar" style="margin-top:12px;">
@@ -1731,6 +1791,27 @@
         btn.lastChild.textContent = light ? ' Dark mode' : ' Light mode';
       });
     })();
+    document.getElementById('buzzDefaultToggle').addEventListener('click', () => {
+      buzzDefaultOn = !buzzDefaultOn;
+      saveSettings();
+      const btn = document.getElementById('buzzDefaultToggle');
+      btn.classList.toggle('on', buzzDefaultOn);
+      btn.setAttribute('aria-checked', buzzDefaultOn ? 'true' : 'false');
+    });
+    document.getElementById('rareDefaultToggle').addEventListener('click', () => {
+      rareDefaultOn = !rareDefaultOn;
+      saveSettings();
+      const btn = document.getElementById('rareDefaultToggle');
+      btn.classList.toggle('on', rareDefaultOn);
+      btn.setAttribute('aria-checked', rareDefaultOn ? 'true' : 'false');
+    });
+    document.getElementById('hotkeySoundSelect').addEventListener('change', (e) => {
+      hotkeySound = VALID_HOTKEY_SOUNDS.includes(e.target.value) ? e.target.value : 'click';
+      saveSettings();
+    });
+    document.getElementById('hotkeySoundPreviewBtn').addEventListener('click', () => {
+      playHotkeySound();
+    });
     document.getElementById('importFile').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if(file) importData(file);
@@ -2115,6 +2196,7 @@
         <div class="grind-header-meta">
           <div class="grind-meta-col"><span class="grind-meta-label">Grind status:</span><span class="cycle-flag">${escapeHtml(statusLabel)}</span></div>
           <div class="grind-meta-col"><span class="grind-meta-label">Platform:</span><span class="platform-tag">${escapeHtml(g.platform)}</span></div>
+          <div class="grind-meta-col"><span class="grind-meta-label">Buzz/Ding on hotkey:</span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle hotkey buzz and ding feedback"><span class="toggle-switch-knob"></span></button></div>
         </div>
       </div>
       <div id="renameArea" style="display:none;" class="rename-area">
@@ -2147,7 +2229,8 @@
         active[target] = Math.max(0, (active[target] || 0) + delta);
         renderCounters(target);
         renderLiveStat();
-        if(active.status === 'completed'){ renderStats(); renderChart(); }
+        renderStats();
+        if(active.status === 'completed'){ renderChart(); }
         markDirty();
         scheduleSave();
       }
@@ -2172,6 +2255,26 @@
       btn.addEventListener('touchend', stopHold);
       btn.addEventListener('touchcancel', stopHold);
     });
+
+    function mainAfterApply(bumpTarget){
+      return () => {
+        const active = getActiveGrind();
+        renderCounters(bumpTarget);
+        renderLiveStat();
+        renderStats();
+        if(active && active.status === 'completed'){ renderChart(); }
+        markDirty(); scheduleSave();
+      };
+    }
+    wireEditableCount(document.getElementById('diamondLvl3Count'), 'Diamond', getActiveGrind,
+      gg => totalDiamond(gg), (gg,val) => { gg.diamondLvl3 = Math.max(0, val - (gg.diamondLvl2||0)); }, mainAfterApply('diamondLvl3'));
+    wireEditableCount(document.getElementById('maxLevelCount'), 'Trolls', getActiveGrind,
+      gg => gg.maxLevelOnly||0, (gg,val) => { gg.maxLevelOnly = val; }, mainAfterApply('maxLevelOnly'));
+    wireEditableCount(document.getElementById('totalCount'), 'Total Kills', getActiveGrind,
+      gg => totalKillsOf(gg), (gg,val) => { const dia = totalDiamond(gg); const troll = gg.maxLevelOnly||0; gg.other = Math.max(0, val - dia - troll); }, mainAfterApply('other'));
+    wireEditableCount(document.getElementById('rareCount'), 'Rare Fur', getActiveGrind,
+      gg => gg.rareCount||0, (gg,val) => { gg.rareCount = val; }, mainAfterApply('rareCount'));
+
     const notesInput = document.getElementById('notesInput');
     if(notesInput){
       notesInput.addEventListener('input', () => {
@@ -2195,6 +2298,17 @@
         const active = getActiveGrind();
         if(!active) return;
         active.rareTracking = !active.rareTracking;
+        markDirty(); scheduleSave();
+        renderCurrentPanel();
+      });
+    }
+
+    const buzzToggleEl = document.getElementById('buzzToggle');
+    if(buzzToggleEl){
+      buzzToggleEl.addEventListener('click', () => {
+        const active = getActiveGrind();
+        if(!active) return;
+        active.buzzEnabled = !active.buzzEnabled;
         markDirty(); scheduleSave();
         renderCurrentPanel();
       });
@@ -2267,21 +2381,41 @@
     const totalDone = completed.length;
 
     if(completed.length === 0 && all.length === 0){
-      grid.innerHTML = `<div class="empty-note" style="flex:1 1 100%;">No grinds yet. Start your first grind on the Current Grind tab.</div>`;
+      grid.innerHTML = `<div class="empty-note" style="grid-column:1 / -1;">No grinds yet. Start your first grind on the Current Grind tab.</div>`;
     } else {
       const n = completed.length || 1;
       const sumDiamond = completed.reduce((s,e)=>s+totalDiamond(e),0);
       const sumL = completed.reduce((s,e)=>s+totalMaxLevel(e),0);
       const sumT = completed.reduce((s,e)=>s+totalKillsOf(e),0);
+      const sumRare = completed.reduce((s,e)=>s+(e.rareCount||0),0);
+      // Avg kills/diamond, Avg kills/max-level, Total rares/diamonds/max-levels/kills track the
+      // currently active grind live (in sync with the counter section) as long as it's still open —
+      // everything else only reflects grinds that have actually been logged.
+      const active = getActiveGrind();
+      const liveExtra = (active && active.status === 'open') ? active : null;
+      const sumDiamondLive = sumDiamond + (liveExtra ? totalDiamond(liveExtra) : 0);
+      const sumLLive = sumL + (liveExtra ? totalMaxLevel(liveExtra) : 0);
+      const sumTLive = sumT + (liveExtra ? totalKillsOf(liveExtra) : 0);
+      const sumRareLive = sumRare + (liveExtra ? (liveExtra.rareCount||0) : 0);
+      const hasLiveData = completed.length > 0 || !!liveExtra;
       grid.innerHTML = `
-        <div class="stat-box"><div class="stat-num">${totalAll}</div><div class="stat-lbl">Total grinds (all time)</div></div>
-        <div class="stat-box"><div class="stat-num">${totalOpen}</div><div class="stat-lbl">Open grinds</div></div>
-        <div class="stat-box"><div class="stat-num">${totalDone}</div><div class="stat-lbl">Completed grinds</div></div>
+        <div class="stat-box" style="grid-column:1; grid-row:1;"><div class="stat-num">${totalAll}</div><div class="stat-lbl">Total grinds (all time)</div></div>
+        ${hasLiveData ? `
+        <div class="stat-box diamond3" style="grid-column:2; grid-row:1;"><div class="stat-num">${sumDiamondLive === 0 ? '—' : (sumTLive/sumDiamondLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per diamond (all time)</div></div>
+        <div class="stat-box antler" style="grid-column:3; grid-row:1;"><div class="stat-num">${sumLLive === 0 ? '—' : (sumTLive/sumLLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per max-level (all time)</div></div>
+        ` : ''}
         ${completed.length > 0 ? `
-        <div class="stat-box diamond3"><div class="stat-num">${(sumDiamond/n).toFixed(1)}</div><div class="stat-lbl">Avg diamonds / grind</div></div>
-        <div class="stat-box antler"><div class="stat-num">${(sumL/n).toFixed(1)}</div><div class="stat-lbl">Avg max-level / grind</div></div>
-        <div class="stat-box total"><div class="stat-num">${(sumT/n).toFixed(1)}</div><div class="stat-lbl">Avg total kills / grind</div></div>
-        <div class="stat-box"><div class="stat-num">${sumDiamond === 0 ? '—' : (sumT/sumDiamond).toFixed(2)}</div><div class="stat-lbl">Avg kills / diamond (completed)</div></div>
+        <div class="stat-box diamond3" style="grid-column:4; grid-row:1;"><div class="stat-num">${(sumDiamond/n).toFixed(1)}</div><div class="stat-lbl">Avg diamonds / grind</div></div>
+        <div class="stat-box antler" style="grid-column:5; grid-row:1;"><div class="stat-num">${(sumL/n).toFixed(1)}</div><div class="stat-lbl">Avg max-level / grind</div></div>
+        <div class="stat-box total" style="grid-column:6; grid-row:1;"><div class="stat-num">${(sumT/n).toFixed(1)}</div><div class="stat-lbl">Avg total kills / grind</div></div>
+        ` : ''}
+        <div class="stat-box" style="grid-column:1; grid-row:2;"><div class="stat-num">${totalOpen}</div><div class="stat-lbl">Open grinds</div></div>
+        <div class="stat-box" style="grid-column:2; grid-row:2;"><div class="stat-num">${totalDone}</div><div class="stat-lbl">Logged grinds</div></div>
+        ${hasLiveData ? `
+        <div class="stat-box rare" style="grid-column:3; grid-row:2;"><div class="stat-num">${sumRareLive}</div><div class="stat-lbl">Total rares</div></div>
+        <div class="stat-box diamond3" style="grid-column:4; grid-row:2;"><div class="stat-num">${sumDiamondLive}</div><div class="stat-lbl">Total diamonds (all time)</div></div>
+        <div class="stat-box antler" style="grid-column:5; grid-row:2;"><div class="stat-num">${sumLLive}</div><div class="stat-lbl">Total max-levels (all time)</div></div>
+        <div class="stat-box total" style="grid-column:6; grid-row:2;"><div class="stat-num">${sumTLive}</div><div class="stat-lbl">Total kills (all time)</div></div>
         ` : ''}
       `;
     }
@@ -2710,7 +2844,7 @@
         exportedAt: new Date().toISOString(),
         grinds, activeGrindId,
         keybinds,
-        settings: { twoStepDelete },
+        settings: { twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound },
         customDefaults: loadCustomDefaults()
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -3039,6 +3173,7 @@
     if(!incomingKeybinds) return 0;
     let added = 0;
     Object.entries(incomingKeybinds).forEach(([target, key]) => {
+      if(!VALID_KEYBIND_TARGETS.includes(target)) return;
       if(!keybinds[target]){ keybinds[target] = key; added++; }
     });
     if(added > 0) saveKeybinds();
@@ -3107,8 +3242,20 @@
             grinds = incoming.grinds;
             activeGrindId = incoming.activeGrindId;
             returnToGrindId = null; browsingOpenGrinds = false; editingId = null;
-            if(incomingKeybinds){ keybinds = incomingKeybinds; saveKeybinds(); }
-            if(incomingSettings){ twoStepDelete = incomingSettings.twoStepDelete === true; saveSettings(); }
+            if(incomingKeybinds){
+              keybinds = {};
+              Object.entries(incomingKeybinds).forEach(([target, key]) => {
+                if(VALID_KEYBIND_TARGETS.includes(target)) keybinds[target] = key;
+              });
+              saveKeybinds();
+            }
+            if(incomingSettings){
+              twoStepDelete = incomingSettings.twoStepDelete === true;
+              buzzDefaultOn = incomingSettings.buzzDefaultOn === true;
+              rareDefaultOn = incomingSettings.rareDefaultOn === true;
+              hotkeySound = VALID_HOTKEY_SOUNDS.includes(incomingSettings.hotkeySound) ? incomingSettings.hotkeySound : 'click';
+              saveSettings();
+            }
             if(incomingCustomDefaults){ saveCustomDefaults({ species: incomingCustomDefaults.species||[], maps: incomingCustomDefaults.maps||[] }); }
             markDirty();
             await saveNow();
@@ -3123,7 +3270,7 @@
     reader.readAsText(file);
   }
 
-  function askConfirm(text, onConfirm){
+  function askConfirm(text, onConfirm, onCancel){
     const modal = document.getElementById('confirmModal');
     document.getElementById('modalText').textContent = text;
     // Clone buttons to strip all old listeners (handles showDeleteFinalModal replacements)
@@ -3140,8 +3287,61 @@
     });
     newCancel.addEventListener('click', () => {
       modal.classList.add('hidden');
+      if(onCancel) onCancel();
     });
     modal.classList.remove('hidden');
+  }
+
+  // Makes a count-display element click-to-edit: click → inline number input →
+  // Enter/blur → confirmation popup → applies on Confirm, reverts on Cancel.
+  // getGrind: () => grind object (or null). getDisplayValue: (g) => number shown.
+  // applyDisplayValue: (g, newVal) => mutates g's underlying field(s) so the
+  // display recomputes to newVal. afterApply: () => re-render/save side effects.
+  function wireEditableCount(el, label, getGrind, getDisplayValue, applyDisplayValue, afterApply){
+    if(!el) return;
+    el.classList.add('count-editable');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `${label} count, click to edit`);
+    el.addEventListener('click', () => {
+      if(el.querySelector('input')) return; // already editing
+      const g = getGrind();
+      if(!g) return;
+      const current = getDisplayValue(g);
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '1';
+      input.inputMode = 'numeric';
+      input.className = 'count-edit-input';
+      input.value = current;
+      el.textContent = '';
+      el.appendChild(input);
+      input.focus();
+      input.select();
+
+      let settled = false;
+      function revert(){ el.textContent = current; }
+      function commit(){
+        if(settled) return;
+        settled = true;
+        const raw = parseInt(input.value, 10);
+        const val = (isNaN(raw) || raw < 0) ? current : raw;
+        if(val === current){ revert(); return; }
+        askConfirm(`Set ${label} to ${val}? (currently ${current})`, () => {
+          const gg = getGrind();
+          if(!gg) return;
+          applyDisplayValue(gg, val);
+          if(afterApply) afterApply();
+        }, revert);
+      }
+      input.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter'){ e.preventDefault(); commit(); }
+        else if(e.key === 'Escape'){ e.preventDefault(); settled = true; revert(); }
+      });
+      input.addEventListener('blur', () => { if(!settled) commit(); });
+      input.addEventListener('click', (e) => e.stopPropagation());
+    });
   }
 
   const TERMS = [
@@ -3225,7 +3425,16 @@
   });
 
   function loadKeybinds(){
-    try{ keybinds = JSON.parse(localStorage.getItem(KEYBIND_KEY) || '{}'); }catch(e){ keybinds = {}; }
+    try{
+      const raw = JSON.parse(localStorage.getItem(KEYBIND_KEY) || '{}');
+      keybinds = {};
+      let stale = false;
+      Object.entries(raw).forEach(([target, key]) => {
+        if(VALID_KEYBIND_TARGETS.includes(target)) keybinds[target] = key;
+        else stale = true;
+      });
+      if(stale) saveKeybinds(); // permanently drop bindings left over from removed counters
+    }catch(e){ keybinds = {}; }
   }
   function saveKeybinds(){
     try{ localStorage.setItem(KEYBIND_KEY, JSON.stringify(keybinds)); }catch(e){}
@@ -3237,6 +3446,125 @@
     return key;
   }
 
+  // Short synthesized hotkey-feedback sounds — for platforms where navigator.vibrate does
+  // nothing (desktop, iOS). No audio files needed; all built with the Web Audio API on the fly.
+  let audioCtx = null;
+  function getAudioCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function playHotkeyDing(){
+    try{
+      const ctx = getAudioCtx();
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, t0);
+      osc.frequency.exponentialRampToValueAtTime(1318.5, t0 + 0.08);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.22, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.4);
+    }catch(e){}
+  }
+  // Soft mechanical-keyswitch "clack" — short filtered noise burst, no tone/pitch.
+  function playHotkeyClick(){
+    try{
+      const ctx = getAudioCtx();
+      const t0 = ctx.currentTime;
+      const bufferSize = Math.floor(ctx.sampleRate * 0.03);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(2200, t0);
+      filter.Q.value = 1.2;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.45, t0);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.03);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(t0);
+      noise.stop(t0 + 0.05);
+    }catch(e){}
+  }
+  // Deeper "thock" — same filtered-noise-burst technique as Click, tuned lower for a
+  // heavier switch-bottoming-out feel instead of a sharp clack.
+  function playHotkeyThock(){
+    try{
+      const ctx = getAudioCtx();
+      const t0 = ctx.currentTime;
+      const bufferSize = Math.floor(ctx.sampleRate * 0.045);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(900, t0);
+      filter.Q.value = 1.0;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.5, t0);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.045);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(t0);
+      noise.stop(t0 + 0.07);
+    }catch(e){}
+  }
+  // Quick descending "pop"/bubble.
+  function playHotkeyPop(){
+    try{
+      const ctx = getAudioCtx();
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, t0);
+      osc.frequency.exponentialRampToValueAtTime(140, t0 + 0.09);
+      gain.gain.setValueAtTime(0.001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.15);
+    }catch(e){}
+  }
+  // Single short tone — simpler/shorter than the two-tone ding.
+  function playHotkeyBlip(){
+    try{
+      const ctx = getAudioCtx();
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1046.5, t0);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.22, t0 + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.1);
+    }catch(e){}
+  }
+  const HOTKEY_SOUND_PLAYERS = { ding: playHotkeyDing, click: playHotkeyClick, thock: playHotkeyThock, pop: playHotkeyPop, blip: playHotkeyBlip };
+  function playHotkeySound(){
+    (HOTKEY_SOUND_PLAYERS[hotkeySound] || playHotkeyClick)();
+  }
+
   // Global keydown → fire +1 on bound counter
   document.addEventListener('keydown', function(e){
     // Ignore if typing in an input/textarea
@@ -3246,6 +3574,7 @@
     const g = getActiveGrind();
     if(!g) return;
     Object.entries(keybinds).forEach(([target, boundKey]) => {
+      if(!VALID_KEYBIND_TARGETS.includes(target)) return;
       if(e.key === boundKey){
         e.preventDefault();
         // Rare counter only fires if tracking is on
@@ -3253,9 +3582,14 @@
         g[target] = Math.max(0, (g[target] || 0) + 1);
         renderCounters(target);
         renderLiveStat();
-        if(g.status === 'completed'){ renderStats(); renderChart(); }
+        renderStats();
+        if(g.status === 'completed'){ renderChart(); }
         markDirty();
         scheduleSave();
+        if(g.buzzEnabled){
+          if(navigator.vibrate) navigator.vibrate(40);
+          playHotkeySound();
+        }
       }
     });
   });
