@@ -1,4 +1,17 @@
 (function(){
+  // ---------- Domain Lock ----------
+  // Only allow the app to run on approved hosts. This is not real protection — the source is
+  // still fully readable by anyone who views it here — it just stops a straight copy-paste
+  // reupload of these files from functioning on an unapproved domain.
+  const ALLOWED_HOSTS = ['greatonegrindlog.netlify.app', 'beta--greatonegrindlog.netlify.app', 'localhost', '127.0.0.1'];
+  // Opening index.html straight from disk (double-click / drag into browser) uses the file:
+  // protocol, which has no hostname at all — allow that too so local testing still works.
+  const isLocalFile = window.location.protocol === 'file:';
+  if (!isLocalFile && !ALLOWED_HOSTS.includes(window.location.hostname)) {
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Nunito,sans-serif;background:#121c16;color:#e9e4d6;"><div><h1 style="font-family:Merriweather,serif;margin-bottom:8px;">Great One Grind Log</h1><p style="margin-bottom:8px;">This app only runs on its official site.</p><p><a href="https://greatonegrindlog.netlify.app" style="color:#c9a14a;">greatonegrindlog.netlify.app</a></p></div></div>';
+    return;
+  }
+
   const DATA_KEY = 'goGrind:data';
   const KEYBIND_KEY = 'goGrind:keybinds';
   const SETTINGS_KEY = 'goGrind:settings';
@@ -54,6 +67,7 @@
   let pendingAction = null;
   let activeTab = 'current';
   let editingId = null;
+  let openCounterEdit = null; // { grindId, g, panel, snapshot } while a logged grind's inline counter editor is open
   let storageAvailable = true;
   let saveTimer = null;
   let saveInFlight = false;
@@ -482,14 +496,30 @@
   }
 
   function showCounterEditModal(grindId){
-    // Toggle the inline counter panel on the card
+    // Toggle the inline counter panel on the card. Re-pressing the Edit Counter button
+    // while it's already open is treated as an attempt to close it, so it goes through
+    // the same save/revert confirmation as the in-panel Save Changes button.
     const existing = document.getElementById(`go-inline-counter-${grindId}`);
     if(existing){
-      existing.remove();
+      const g = grinds.find(x => x.id === grindId);
+      if(g && existing._editSnapshot){
+        promptCounterSaveOrRevert(g, grindId, existing, existing._editSnapshot);
+      } else {
+        existing.remove();
+        if(openCounterEdit && openCounterEdit.grindId === grindId) openCounterEdit = null;
+      }
       return;
     }
     const g = grinds.find(x => x.id === grindId);
     if(!g) return;
+
+    // Snapshot the counter-relevant fields as they stood before this editing session,
+    // so Save Changes can show a before/after diff and Revert can actually restore it.
+    const snapshot = {
+      diamondLvl3: g.diamondLvl3||0, diamondLvl2: g.diamondLvl2||0,
+      maxLevelOnly: g.maxLevelOnly||0, other: g.other||0,
+      rareCount: g.rareCount||0, rareTracking: g.rareTracking
+    };
 
     // Build inline counter HTML (reuse same builder, scoped by grindId)
     const counterHTML = buildInlineCounterHTML(g, grindId);
@@ -497,10 +527,14 @@
     const panel = document.createElement('div');
     panel.id = `go-inline-counter-${grindId}`;
     panel.className = 'go-inline-counter';
+    panel._editSnapshot = snapshot;
     panel.innerHTML = `
       <div class="go-inline-counter-header">
         <span class="go-inline-counter-title">Editing Counter</span>
-        <button class="go-inline-counter-close" data-id="${grindId}">✕ Done</button>
+        <div class="go-inline-counter-actions">
+          <button class="go-inline-counter-save" data-id="${grindId}">💾 Save Changes</button>
+          <button class="go-inline-counter-revert" data-id="${grindId}">↺ Revert to Original</button>
+        </div>
       </div>
       ${counterHTML}
     `;
@@ -509,9 +543,24 @@
     const card = document.querySelector(`.go-log-card[data-grind-id="${grindId}"]`);
     if(!card) return;
     card.appendChild(panel);
+    openCounterEdit = { grindId, g, panel, snapshot };
 
-    // Wire close
-    panel.querySelector('.go-inline-counter-close').addEventListener('click', () => panel.remove());
+    // Wire Save Changes — shows a before/after diff. Either choice keeps the panel open,
+    // just applying either the saved or the reverted counts.
+    panel.querySelector('.go-inline-counter-save').addEventListener('click', () => {
+      showCounterEditConfirmModal(snapshot, g, () => {
+        saveCounterEditInPlace(g, grindId, panel, snapshot);
+      }, () => {
+        revertCounterEditInPlace(g, grindId, panel, snapshot);
+      });
+    });
+    // Wire Revert to Original — simple standalone confirm; canceling just keeps editing,
+    // confirming reverts in place without closing the panel.
+    panel.querySelector('.go-inline-counter-revert').addEventListener('click', () => {
+      askConfirm('This will revert this grind’s counters back to their last saved baseline. It only undoes edits you haven’t saved yet — it won’t work on changes you’ve already confirmed with Save Changes. Continue?', () => {
+        revertCounterEditInPlace(g, grindId, panel, snapshot);
+      });
+    });
 
     // Wire ctrl-btns — operate on grind directly
     panel.querySelectorAll('.ctrl-btn').forEach(btn => {
@@ -581,6 +630,209 @@
     renderInlineCounters(g, grindId);
   }
 
+  // Shared by the Save Changes button and by re-pressing Edit Counter to close the panel.
+  // Shows the before/after diff; Confirm keeps the (already live-applied) edits, Cancel
+  // reverts back to the pre-edit snapshot instead. Either way the panel closes.
+  function promptCounterSaveOrRevert(g, grindId, panel, snapshot){
+    showCounterEditConfirmModal(snapshot, g, () => {
+      finishCounterEdit(grindId, panel);
+    }, () => {
+      revertGrindCounters(g, snapshot);
+      finishCounterEdit(grindId, panel);
+    });
+  }
+
+  function revertGrindCounters(g, snapshot){
+    g.diamondLvl3 = snapshot.diamondLvl3;
+    g.diamondLvl2 = snapshot.diamondLvl2;
+    g.maxLevelOnly = snapshot.maxLevelOnly;
+    g.other = snapshot.other;
+    g.rareCount = snapshot.rareCount;
+    g.rareTracking = snapshot.rareTracking;
+  }
+
+  function finishCounterEdit(grindId, panel){
+    markDirty(); scheduleSave();
+    if(openCounterEdit && openCounterEdit.grindId === grindId) openCounterEdit = null;
+    if(panel && panel.parentNode) panel.remove();
+    renderStats(); renderChart(); renderGoLog(); renderLiveStat();
+  }
+
+  // Refreshes the still-open inline editor panel's displayed numbers/toggle state after
+  // an in-place save or revert, without rebuilding the Grind Log cards (which would
+  // destroy the panel). Mirrors the live per-click update logic in showCounterEditModal.
+  function refreshCounterEditUI(g, grindId, panel){
+    renderInlineCounters(g, grindId);
+    if(g.id === activeGrindId) renderLiveStat();
+    const statRow = panel.closest('.go-log-card')?.querySelector('.go-log-stats-row');
+    if(statRow) updateGoLogStatRow(g, statRow);
+    const rareToggleEl = panel.querySelector('#rareToggle');
+    if(rareToggleEl){
+      const rareCard = panel.querySelector('#rareCard');
+      const rareMinusBtn = panel.querySelector('[data-target="rareCount"].minus');
+      const rarePlusBtn = panel.querySelector('[data-target="rareCount"].plus');
+      if(rareCard) rareCard.classList.toggle('rare-off', !g.rareTracking);
+      if(rareMinusBtn) rareMinusBtn.disabled = !g.rareTracking;
+      if(rarePlusBtn) rarePlusBtn.disabled = !g.rareTracking;
+      rareToggleEl.classList.toggle('on', g.rareTracking);
+      rareToggleEl.setAttribute('aria-checked', g.rareTracking ? 'true' : 'false');
+    }
+  }
+
+  // Confirms the current live-edited counts as the new baseline. The panel stays open —
+  // the snapshot is advanced to match, so Revert to Original can no longer undo this
+  // now-saved change (it only ever undoes edits made since the last save).
+  function saveCounterEditInPlace(g, grindId, panel, snapshot){
+    markDirty(); scheduleSave();
+    Object.assign(snapshot, {
+      diamondLvl3: g.diamondLvl3||0, diamondLvl2: g.diamondLvl2||0,
+      maxLevelOnly: g.maxLevelOnly||0, other: g.other||0,
+      rareCount: g.rareCount||0, rareTracking: g.rareTracking
+    });
+    refreshCounterEditUI(g, grindId, panel);
+    renderStats(); renderChart(); renderLiveStat();
+  }
+
+  // Reverts to the current snapshot baseline in place, without closing the panel.
+  function revertCounterEditInPlace(g, grindId, panel, snapshot){
+    revertGrindCounters(g, snapshot);
+    markDirty(); scheduleSave();
+    refreshCounterEditUI(g, grindId, panel);
+    renderStats(); renderChart(); renderLiveStat();
+  }
+
+  // True while a logged grind's inline counter editor is open AND its live counts differ
+  // from the last-saved baseline — used to block navigating to another tab mid-edit.
+  function hasUnsavedCounterEdits(){
+    if(!openCounterEdit) return false;
+    const { g, snapshot } = openCounterEdit;
+    return g.diamondLvl3 !== snapshot.diamondLvl3
+      || g.diamondLvl2 !== snapshot.diamondLvl2
+      || g.maxLevelOnly !== snapshot.maxLevelOnly
+      || g.other !== snapshot.other
+      || g.rareCount !== snapshot.rareCount
+      || g.rareTracking !== snapshot.rareTracking;
+  }
+
+  // Blocks a tab switch while there are unsaved counter edits — offers Save Changes,
+  // Revert to Original, or Okay (just returns to editing without touching anything).
+  function showFinishEditingFirstModal(){
+    if(!openCounterEdit) return;
+    const { grindId, g, panel, snapshot } = openCounterEdit;
+    const modal = document.getElementById('confirmModal');
+    const textEl = document.getElementById('modalText');
+    const actionsBox = modal.querySelector('.modal-actions');
+
+    textEl.textContent = 'Finish editing this grind’s counter before switching tabs.';
+
+    const diffTable = document.getElementById('counterEditDiffTable');
+    if(diffTable) diffTable.remove();
+
+    actionsBox.innerHTML = `
+      <button id="finishEditSaveBtn" class="confirm-go">💾 Save Changes</button>
+      <button id="finishEditRevertBtn" class="go-inline-counter-revert">↺ Revert to Original</button>
+      <button id="finishEditOkayBtn">Continue</button>
+    `;
+    modal.classList.remove('hidden');
+
+    document.getElementById('finishEditSaveBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      restoreConfirmModal();
+      saveCounterEditInPlace(g, grindId, panel, snapshot);
+    });
+    document.getElementById('finishEditRevertBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      restoreConfirmModal();
+      revertCounterEditInPlace(g, grindId, panel, snapshot);
+    });
+    document.getElementById('finishEditOkayBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      restoreConfirmModal();
+    });
+  }
+
+  // True while any rename input box (Current Grind, or a Grind Log entry) is open.
+  function hasOpenRenameEditor(){
+    const renameArea = document.getElementById('renameArea');
+    if(renameArea && renameArea.style.display !== 'none') return true;
+    if(document.querySelector('.go-rename-area:not(.hidden)')) return true;
+    return false;
+  }
+
+  // Blocks a tab switch while a rename box is open — single Continue button just
+  // dismisses the warning and returns to editing; it doesn't save or cancel anything.
+  function showFinishRenamingFirstModal(){
+    const modal = document.getElementById('confirmModal');
+    const textEl = document.getElementById('modalText');
+    const actionsBox = modal.querySelector('.modal-actions');
+
+    textEl.textContent = 'Finish editing this name before switching tabs.';
+
+    const diffTable = document.getElementById('counterEditDiffTable');
+    if(diffTable) diffTable.remove();
+
+    actionsBox.innerHTML = `<button id="finishRenameContinueBtn" class="confirm-go">Continue</button>`;
+    modal.classList.remove('hidden');
+
+    document.getElementById('finishRenameContinueBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      restoreConfirmModal();
+    });
+  }
+
+  // Diff-style confirmation for saving counter edits on a logged grind — lists each
+  // counter's prior vs. new count. Confirm = "Save Changes"; Cancel reverts back to
+  // the pre-edit snapshot (labeled plain "Cancel" since it's this modal's only way out).
+  function showCounterEditConfirmModal(snapshot, g, onConfirm, onCancel){
+    const modal = document.getElementById('confirmModal');
+    const textEl = document.getElementById('modalText');
+    const confirmBtn = document.getElementById('modalConfirm');
+    const cancelBtn = document.getElementById('modalCancel');
+
+    textEl.textContent = 'Save these changes to the logged grind? This can’t be automatically reverted once saved.';
+
+    let diffTable = document.getElementById('counterEditDiffTable');
+    if(!diffTable){
+      diffTable = document.createElement('div');
+      diffTable.id = 'counterEditDiffTable';
+      diffTable.className = 'wizard-review-table';
+      diffTable.style.marginTop = '10px';
+      textEl.insertAdjacentElement('afterend', diffTable);
+    }
+    const rows = [
+      ['Diamond', totalDiamond(snapshot), totalDiamond(g)],
+      ['Trolls', snapshot.maxLevelOnly||0, g.maxLevelOnly||0],
+      ['Total Kills', totalKillsOf(snapshot), totalKillsOf(g)],
+      ['Rare Fur', snapshot.rareCount||0, g.rareCount||0]
+    ];
+    diffTable.innerHTML = rows.map(([label, before, after]) =>
+      `<div class="wizard-review-row"><span class="wizard-review-label">${label}</span><span class="wizard-review-val">${before} &rarr; ${after}</span></div>`
+    ).join('');
+
+    modal.classList.remove('hidden');
+
+    const newConfirm = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+    newConfirm.className = 'confirm-go';
+    newConfirm.textContent = 'Save Changes';
+    newConfirm.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      if(diffTable) diffTable.remove();
+      restoreConfirmModal();
+      if(onConfirm) onConfirm();
+    });
+
+    const newCancel = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+    newCancel.textContent = 'Cancel';
+    newCancel.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      if(diffTable) diffTable.remove();
+      restoreConfirmModal();
+      if(onCancel) onCancel();
+    });
+  }
+
   function buildInlineCounterHTML(g, grindId){
     // Identical structure to buildCounterHTML but IDs are scoped with grindId
     return `
@@ -620,7 +872,7 @@
             ${keybindFooter('other', 'Total Kills')}
           </div>
           <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
+            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" data-hint="More advanced settings in the &quot;Settings&quot; section!" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
             <div class="card-sub">this grind</div>
             <div class="counter-controls">
               <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
@@ -825,7 +1077,7 @@
           e.stopPropagation();
           const g = grinds.find(x => x.id === btn.dataset.id);
           const name = g ? (g.nickname || g.defaultName || g.species) : '';
-          askDeleteGrind(btn.dataset.id, name);
+          askDeleteLoggedGrind(btn.dataset.id, name);
         });
       });
       cards.querySelectorAll('.go-rename-btn').forEach(btn => {
@@ -902,6 +1154,15 @@
         showDeleteFinalModal(label, doDelete);
       });
     }
+  }
+
+  // Logged (completed) grinds carry real trophy data, so deleting one from the Grind Log
+  // gets one extra confirmation up front before handing off to the normal askDeleteGrind flow.
+  function askDeleteLoggedGrind(id, name){
+    const label = name ? `"${name}"` : 'this logged grind';
+    askConfirm(`This will permanently delete ${label} and its logged trophy data. Continue?`, () => {
+      askDeleteGrind(id, name);
+    });
   }
 
   function showDeleteFinalModal(label, doDelete){
@@ -997,8 +1258,7 @@
     if(!wizardState) return;
     const isUnlisted = wizardState.species === UNLISTED_GO;
     if(wizardState.step === 'new-species'){ wizardState.step = 'species'; }
-    else if(wizardState.step === 'new-species-maxlevel'){ wizardState.step = 'new-species'; }
-    else if(wizardState.step === 'confirm-species'){ wizardState.step = 'new-species-maxlevel'; }
+    else if(wizardState.step === 'confirm-species'){ wizardState.step = 'new-species'; }
     else if(wizardState.step === 'edit-species'){ wizardState.step = 'species'; }
     else if(wizardState.step === 'map'){ wizardState.step = 'species'; wizardState.map = null; }
     else if(wizardState.step === 'unlisted-map'){ wizardState.step = 'species'; }
@@ -1161,45 +1421,23 @@
       content.innerHTML = `
         <div class="wizard-title">New Species Name</div>
         <p class="info-note" style="margin-bottom:12px;">Enter the name of the new or unlisted Great One species.</p>
-        <input type="text" id="newSpeciesInput" class="wizard-text-input" placeholder="e.g. Elk, Bison…" maxlength="60" value="${escapeAttr(wizardState._newText||'')}">
+        <input type="text" id="newSpeciesInput" class="wizard-text-input" placeholder="e.g. Elk, Bison, Beaver…" maxlength="60" value="${escapeAttr(wizardState._newText||'')}">
         <button class="wizard-next-btn" id="newSpeciesNext">Next →</button>
       `;
       const inp = content.querySelector('#newSpeciesInput');
       inp.focus();
       const doNext = () => {
         const v = inp.value.trim(); if(!v) return;
-        wizardState._newText = v; wizardState.step = 'new-species-maxlevel'; renderWizard();
+        wizardState._newText = v; wizardState.step = 'confirm-species'; renderWizard();
       };
       content.querySelector('#newSpeciesNext').addEventListener('click', doNext);
       inp.addEventListener('keydown', e => { if(e.key === 'Enter') doNext(); });
-
-    } else if(wizardState.step === 'new-species-maxlevel'){
-      const ML_OPTIONS = [
-        { value: 3, label: 'Level 3', desc: 'e.g. Whitetail Deer, Pheasant, Roe Deer' },
-        { value: 5, label: 'Level 5', desc: 'e.g. Moose, Fallow Deer, Wild Boar, Mule Deer, Tahr' },
-        { value: 9, label: 'Level 9', desc: 'e.g. Red Deer, Black Bear, Red Fox, Gray Wolf, Jaguar' },
-      ];
-      content.innerHTML = `
-        <div class="wizard-title">What's the max level?</div>
-        <p class="info-note" style="margin-bottom:12px;">This will be saved with the species and used every time you grind for <strong>${escapeHtml(wizardState._newText)}</strong>.</p>
-        <div class="wizard-grid">
-          ${ML_OPTIONS.map(o => `
-            <button class="wizard-option-btn wizard-ml-btn ${wizardState._newMaxLevel===o.value?'selected':''}" data-ml="${o.value}">
-              <strong>${o.label}</strong><span class="wizard-ml-desc"> — ${o.desc}</span>
-            </button>`).join('')}
-        </div>
-      `;
-      content.querySelectorAll('.wizard-ml-btn').forEach(btn => btn.addEventListener('click', () => {
-        wizardState._newMaxLevel = parseInt(btn.dataset.ml, 10);
-        wizardState.step = 'confirm-species'; renderWizard();
-      }));
 
     } else if(wizardState.step === 'confirm-species'){
       content.innerHTML = `
         <div class="wizard-title">Confirm New Species</div>
         <div class="wizard-review-table" style="margin-bottom:16px;">
           <div class="wizard-review-row"><span class="wizard-review-label">Species</span><span class="wizard-review-val">${escapeHtml(wizardState._newText)}</span></div>
-          <div class="wizard-review-row"><span class="wizard-review-label">Max Level</span><span class="wizard-review-val">${wizardState._newMaxLevel || 3}</span></div>
         </div>
         <p class="info-note" style="margin-bottom:14px;">Is this correct? It will be saved to your Custom-Made Options.</p>
         <div class="wizard-review-actions">
@@ -1208,8 +1446,8 @@
         </div>
       `;
       content.querySelector('#confirmSpeciesYes').addEventListener('click', () => {
-        addCustomSpecies(wizardState._newText, wizardState._newMaxLevel || 3);
-        wizardState._newText = ''; wizardState._newMaxLevel = null;
+        addCustomSpecies(wizardState._newText, 3);
+        wizardState._newText = '';
         wizardState.step = 'species'; renderWizard();
       });
       content.querySelector('#confirmSpeciesNo').addEventListener('click', () => {
@@ -1514,6 +1752,7 @@
           <p class="info-text">This tool is an easy way to keep track of your grind at a higher level &mdash; instead of trying to remember exact numbers in your head while you hunt, you just tap a button each time you take a relevant kill, and the tool keeps the running totals for you.</p>
           <p class="info-text" style="margin-top:10px;">That info is then taken and used to build averages and trends across all your grinds &mdash; see the Analytics section below.</p>
           <p class="info-note">The accuracy of what this tool tells you is only as good as the accuracy of what you put into it. If a kill is miscounted or miscategorized, the averages built from it will be off too.</p>
+          <p class="info-note" style="margin-top:6px;">Want to use this tool like an app on your phone or computer instead of a browser tab? See <a href="#installGuide" class="term-link">Installing as a Browser App</a> below.</p>
         </section>
 
         <section>
@@ -1558,6 +1797,53 @@
           <p class="info-text">Once you have at least one Great One grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. (Non-Great-One grinds are excluded, since those stats are only meaningful for Great One grinds.)</p>
           <p class="info-text" style="margin-top:10px;">It shows an overview of averages &mdash; kills, diamonds, diamond rate, and more &mdash; across all your grinds, plus a trend chart showing how your kill counts have moved over time.</p>
           <p class="info-text" style="margin-top:10px;"><strong>Grind Comparison</strong> lets you compare same-species grinds side-by-side across different maps, and <strong>Grinds by Species</strong> gives a full breakdown of how many grinds (open or completed) you have per species.</p>
+        </section>
+
+        <section>
+          <h2>Export &amp; Import</h2>
+          <p class="info-text">Found under <strong>Settings → Backup &amp; Transfer Data</strong>, these tools move your data in and out of the app.</p>
+          <p class="info-text" style="margin-top:10px;"><strong>Export backup</strong> downloads a full JSON file containing all your grinds (open and logged), keybinds, custom species/maps, and settings &mdash; everything needed to fully restore your setup elsewhere.</p>
+          <p class="info-text" style="margin-top:10px;"><strong>Import backup</strong> restores a previously exported JSON file. You'll be asked to choose <strong>Merge</strong> (adds what's new without touching what you already have &mdash; recommended) or <strong>Overwrite</strong> (replaces everything with the file's contents).</p>
+          <p class="info-text" style="margin-top:10px;"><strong>Export CSV</strong> downloads your logged grinds as a spreadsheet you can open in Excel, Google Sheets, or Numbers to sort, filter, or build your own charts &mdash; handy for your own analysis, but it's a one-way export and can't be re-imported.</p>
+          <p class="info-note">Since your data lives only in this browser, exporting a backup is the only way to move it to another browser or device, or to keep a safety copy in case you clear your browser data.</p>
+        </section>
+
+        <section id="installGuide">
+          <h2>Installing as a Browser App</h2>
+          <p class="info-text">This tool can be installed straight from your browser, so it opens like its own app instead of a browser tab &mdash; no app store needed. Steps vary by browser and device:</p>
+          <p class="info-note">Browsers change their menus and options over time, so these instructions may not always be perfectly accurate or up to date. The browser-app experience also may not be available or fully optimized on every device or browser &mdash; sorry if yours isn't one of them!</p>
+
+          <h3 class="how-it-works-subhead">Chrome / Edge (Windows, Mac, Linux)</h3>
+          <ol class="how-it-works-list">
+            <li>Look for an install icon in the address bar (usually a small monitor with a down arrow, or a "+").</li>
+            <li>Click it, then click <strong>Install</strong>.</li>
+            <li>If you don't see the icon, click the menu (&#8942;) in the top-right, then look for <strong>Install Great One Grind Log&hellip;</strong> or <strong>Apps &rarr; Install this site as an app</strong>.</li>
+          </ol>
+
+          <h3 class="how-it-works-subhead">Chrome (Android)</h3>
+          <ol class="how-it-works-list">
+            <li>Tap the menu (&#8942;) in the top-right corner.</li>
+            <li>Tap <strong>Add to Home screen</strong> or <strong>Install app</strong>.</li>
+            <li>Confirm by tapping <strong>Install</strong> or <strong>Add</strong>.</li>
+          </ol>
+
+          <h3 class="how-it-works-subhead">Safari (iPhone / iPad)</h3>
+          <ol class="how-it-works-list">
+            <li>Tap the <strong>Share</strong> button (the square with an arrow pointing up).</li>
+            <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+            <li>Tap <strong>Add</strong> in the top-right corner.</li>
+          </ol>
+          <p class="info-note">iOS doesn't allow any app, including this one, to trigger this automatically &mdash; it always has to be done manually through the Share menu.</p>
+
+          <h3 class="how-it-works-subhead">Safari (Mac)</h3>
+          <ol class="how-it-works-list">
+            <li>Click the <strong>Share</strong> button in the toolbar (or use the File menu).</li>
+            <li>Select <strong>Add to Dock</strong>.</li>
+            <li>Confirm the name and click <strong>Add</strong>.</li>
+          </ol>
+
+          <h3 class="how-it-works-subhead">Firefox</h3>
+          <p class="info-text">Firefox has limited or no support for installing sites as apps depending on your platform and version. If you don't see an install option, bookmarking the page or using Chrome/Edge/Safari instead is the most reliable path to an app-like experience.</p>
         </section>
       </div>
 
@@ -1628,6 +1914,14 @@
 
       <div class="tab-panel" id="panel-tool-settings" style="display:none;">
         <section>
+          <h2>Install as an App</h2>
+          <p class="info-text">You can install this tool straight from your browser so it opens like its own app instead of a browser tab, no app store needed.</p>
+          <div class="share-btn-group" style="margin-top:8px;">
+            <button id="settingsInstallGuideBtn" class="share-btn">📲 Installing as a Browser App</button>
+          </div>
+        </section>
+
+        <section>
           <h2>Display</h2>
           <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
             <button id="themeToggleBtn" class="theme-toggle-btn"><span class="theme-toggle-icon">&#9728;</span> Light mode</button>
@@ -1639,8 +1933,8 @@
           <h2>Grind Defaults</h2>
           <p class="info-text">Sets the starting state for brand-new grinds. You can still turn either on or off per-grind at any time from the counter screen — this only controls what a new grind starts with.</p>
           <div class="settings-toggle-row">
-            <span class="grind-meta-label">Buzz/Ding on hotkey use</span>
-            <button class="toggle-switch ${buzzDefaultOn ? 'on' : ''}" id="buzzDefaultToggle" role="switch" aria-checked="${buzzDefaultOn ? 'true' : 'false'}" aria-label="Toggle default buzz and ding on hotkey use for new grinds"><span class="toggle-switch-knob"></span></button>
+            <span class="grind-meta-label">Click/Ding on hotkey use</span>
+            <button class="toggle-switch ${buzzDefaultOn ? 'on' : ''}" id="buzzDefaultToggle" role="switch" aria-checked="${buzzDefaultOn ? 'true' : 'false'}" aria-label="Toggle default click and ding on hotkey use for new grinds"><span class="toggle-switch-knob"></span></button>
           </div>
           <div class="settings-toggle-row">
             <span class="grind-meta-label">Hotkey sound</span>
@@ -1690,12 +1984,19 @@
             <img src="NyXHunt.png" alt="NyXHunt" class="about-avatar">
             <div class="about-profile-info">
               <div class="about-profile-name">NyXHunt</div>
-              <a href="https://www.youtube.com/@NyXtheHunter" target="_blank" rel="noopener" class="about-profile-link">▶ YouTube Channel</a>
+              <a href="https://www.youtube.com/@NyXtheHunter" target="_blank" rel="noopener" class="about-profile-link" style="display:block;">▶ YouTube Channel</a>
+              <a href="mailto:nyxhunting@gmail.com" class="about-profile-link" style="display:block; margin-top:2px;">✉ nyxhunting@gmail.com</a>
             </div>
           </div>
-          <p class="info-text">Hi! My name is NyXHunts, I create content on theHunter Call of the Wild, and I'm also the creator of The Great One Grind Log.</p>
+          <p class="info-text">Hi! My name is NyXHunt, I create content on theHunter Call of the Wild, and I'm also the creator of The Great One Grind Log.</p>
           <p class="info-text" style="margin-top:10px;">When I first started Great One grinding, I used a simple counter on my phone — it worked well enough. But the deeper I got into the grinding playstyle, the more quality-of-life features I found myself wishing existed in one place instead of scattered across notes and memory. Eventually, I was inspired to build this tool: The Great One Grind Log.</p>
           <p class="info-text" style="margin-top:10px;">The Great One Grind Log is an advanced tool packed with features and built specifically for grinders who want more convenience and simplicity in their grinds. Personally, it's been extremely useful for me and my playstyle, allowing me to count kills and store information without having to search for it each time. I hope that you love this tool and that it is as helpful to you as it is to me! Happy hunting!</p>
+          <p class="info-text" style="margin-top:14px;">Say thank you or show support here:</p>
+          <div class="share-btn-group" style="margin-top:8px;">
+            <a href="https://ko-fi.com/nyxhunt" target="_blank" rel="noopener" class="share-btn kofi-btn">☕ Support on Ko-fi</a>
+          </div>
+          <p class="info-note" style="margin-top:16px;">Great One Grind Log is an unofficial, fan-made tool. Parts of the materials referenced are the property of Fatalist Development AB or its affiliates, including Expansive Worlds AB and Avalanche Studios Group, publishers and developers of theHunter: Call of the Wild. All rights reserved. This tool is not approved or endorsed by Fatalist Development AB or any of its affiliates.</p>
+          <p class="info-note" style="margin-top:8px;">This tool is built to follow Avalanche Studios Group's Fan Content Policy.</p>
         </section>
 
         <section>
@@ -1713,12 +2014,19 @@
           <h3 class="how-it-works-subhead">How was this tool created?</h3>
           <p class="info-text">(Disclaimer) This tool was created through AI. I only claim creation through idea/concept and direction. I have had a significant hand in the layout, features, informational text, and processes; however, it is AI that has created the whole display that the user interfaces with. I have also heavily used AI to assist me in the process of making this tool available to the public.</p>
 
+          <h3 class="how-it-works-subhead">Can I install this as an app?</h3>
+          <p class="info-text">Yes &mdash; on most browsers, you can install it straight from your browser so it opens like its own app instead of a tab, no app store needed. See the step-by-step guide for your specific device/browser below.</p>
+          <div class="share-btn-group" style="margin-top:8px;">
+            <button id="aboutInstallGuideBtn" class="share-btn">📲 Installing as a Browser App</button>
+          </div>
+
           <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
-          <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next. Please let me know what you would like to see!</p>
+          <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next (and even if you aren't in beta, I'd still love to hear your feedback and experience with the tool! I might even implement it if it's a solid addition! Who knows?) Please let me know what you would like to see!</p>
           <div class="share-btn-group" style="margin-top:12px;">
             <a href="https://docs.google.com/forms/d/e/1FAIpQLScU90d8Ei4LFA3rb4ypUlC6rddMC9_ZJAhuuoNb7yFagav-zg/viewform" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
-            <a href="changelog.html" class="share-btn">📋 View Changelog</a>
-            <a href="https://ko-fi.com/nyxhunt" target="_blank" rel="noopener" class="share-btn kofi-btn">☕ Support on Ko-fi</a>
+            <a href="changelog.html" target="_blank" rel="noopener" class="share-btn">📋 View Changelog</a>
+            <a href="terms.html" target="_blank" rel="noopener" class="share-btn">📄 Terms of Service</a>
+            <a href="privacy.html" target="_blank" rel="noopener" class="share-btn">🔒 Privacy Policy</a>
           </div>
         </section>
 
@@ -1818,6 +2126,17 @@
       e.target.value = '';
     });
     document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+    function goToInstallGuide(){
+      switchTab('counter-tool');
+      setTimeout(() => {
+        const el = document.getElementById('installGuide');
+        if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 0);
+    }
+    const aboutInstallBtn = document.getElementById('aboutInstallGuideBtn');
+    if(aboutInstallBtn) aboutInstallBtn.addEventListener('click', goToInstallGuide);
+    const settingsInstallBtn = document.getElementById('settingsInstallGuideBtn');
+    if(settingsInstallBtn) settingsInstallBtn.addEventListener('click', goToInstallGuide);
     document.getElementById('shareOverviewBtn').addEventListener('click', shareOverview);
     document.getElementById('downloadOverviewBtn').addEventListener('click', downloadOverview);
     document.getElementById('wizardCancelBtn').addEventListener('click', closeWizard);
@@ -1863,6 +2182,16 @@
   }
 
   function switchTab(tab){
+    // Block navigating away while a logged grind's counter editor has unsaved changes.
+    if(hasUnsavedCounterEdits()){
+      showFinishEditingFirstModal();
+      return;
+    }
+    // Block navigating away while a rename box is open and not yet saved/canceled.
+    if(hasOpenRenameEditor()){
+      showFinishRenamingFirstModal();
+      return;
+    }
     // If ledger was previously active, redirect to golog
     if(tab === 'ledger') tab = 'golog';
     activeTab = tab;
@@ -2053,7 +2382,12 @@
         if(scroll) scroll.innerHTML = renderOpenCards(filtered);
         document.querySelectorAll('.open-grind-card').forEach(card => card.addEventListener('click', () => activateGrind(card.dataset.id)));
         document.querySelectorAll('#openGrindsScroll .go-log-delete-btn').forEach(btn => {
-          btn.addEventListener('click', e => { e.stopPropagation(); deleteGrind(btn.dataset.id); });
+          btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const g = grinds.find(x => x.id === btn.dataset.id);
+            const name = g ? (g.nickname || g.defaultName || g.species) : '';
+            askDeleteGrind(btn.dataset.id, name);
+          });
         });
       }
       ['ogSpeciesFilter','ogMapFilter','ogPlatformFilter'].forEach(id => {
@@ -2130,7 +2464,7 @@
             ${keybindFooter('other', 'Total Kills')}
           </div>
           <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
+            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" data-hint="More advanced settings in the &quot;Settings&quot; section!" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
             <div class="card-sub">this grind</div>
             <div class="counter-controls">
               <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
@@ -2196,7 +2530,7 @@
         <div class="grind-header-meta">
           <div class="grind-meta-col"><span class="grind-meta-label">Grind status:</span><span class="cycle-flag">${escapeHtml(statusLabel)}</span></div>
           <div class="grind-meta-col"><span class="grind-meta-label">Platform:</span><span class="platform-tag">${escapeHtml(g.platform)}</span></div>
-          <div class="grind-meta-col"><span class="grind-meta-label">Buzz/Ding on hotkey:</span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle hotkey buzz and ding feedback"><span class="toggle-switch-knob"></span></button></div>
+          <div class="grind-meta-col"><span class="grind-meta-label">Click/Ding on hotkey:</span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle hotkey click and ding feedback" data-hint="More advanced settings in the &quot;Settings&quot; section!"><span class="toggle-switch-knob"></span></button></div>
         </div>
       </div>
       <div id="renameArea" style="display:none;" class="rename-area">
@@ -2404,11 +2738,9 @@
         <div class="stat-box diamond3" style="grid-column:2; grid-row:1;"><div class="stat-num">${sumDiamondLive === 0 ? '—' : (sumTLive/sumDiamondLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per diamond (all time)</div></div>
         <div class="stat-box antler" style="grid-column:3; grid-row:1;"><div class="stat-num">${sumLLive === 0 ? '—' : (sumTLive/sumLLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per max-level (all time)</div></div>
         ` : ''}
-        ${completed.length > 0 ? `
         <div class="stat-box diamond3" style="grid-column:4; grid-row:1;"><div class="stat-num">${(sumDiamond/n).toFixed(1)}</div><div class="stat-lbl">Avg diamonds / grind</div></div>
         <div class="stat-box antler" style="grid-column:5; grid-row:1;"><div class="stat-num">${(sumL/n).toFixed(1)}</div><div class="stat-lbl">Avg max-level / grind</div></div>
         <div class="stat-box total" style="grid-column:6; grid-row:1;"><div class="stat-num">${(sumT/n).toFixed(1)}</div><div class="stat-lbl">Avg total kills / grind</div></div>
-        ` : ''}
         <div class="stat-box" style="grid-column:1; grid-row:2;"><div class="stat-num">${totalOpen}</div><div class="stat-lbl">Open grinds</div></div>
         <div class="stat-box" style="grid-column:2; grid-row:2;"><div class="stat-num">${totalDone}</div><div class="stat-lbl">Logged grinds</div></div>
         ${hasLiveData ? `
@@ -2894,7 +3226,7 @@
   }
 
   // ---------- Shareable Image Cards ----------
-  const SHARE_SITE_URL = 'advancedgrindcounter.netlify.app';
+  const SHARE_SITE_URL = 'greatonegrindlog.netlify.app';
 
   function slugify(str){
     return String(str).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'grind';
@@ -2928,15 +3260,25 @@
       antler: v('--antler', '#c9a14a'),
       total: v('--total', '#9aa7b0'),
       blaze: v('--blaze', '#e8612c'),
+      rare: v('--rare', '#c47fc4'),
     };
   }
 
-  function drawShareCard({ title, subtitle, badge, stats, footer }, theme){
-    const W = 900, DPR = 2, cols = 2, gap = 24, rowH = 96;
+  function drawShareCard({ title, subtitle, badge, sections, footer }, theme, opts){
+    const cols = (opts && opts.cols) || 2;
+    const W = 900, DPR = 2, gap = 24, rowH = 96;
     const headerH = 130;
-    const rows = Math.ceil(stats.length / cols);
-    const gridH = rows * rowH;
+    const sectionLabelH = 30;
+    const sectionGap = 10;
     const footerH = 50;
+
+    const activeSections = sections.filter(s => s.stats && s.stats.length > 0);
+    let gridH = 0;
+    activeSections.forEach(sec => {
+      const rows = Math.ceil(sec.stats.length / cols);
+      gridH += (sec.label ? sectionLabelH : 0) + rows * rowH + sectionGap;
+    });
+    gridH = Math.max(0, gridH - sectionGap);
     const H = headerH + gridH + footerH;
 
     const canvas = document.createElement('canvas');
@@ -2977,31 +3319,42 @@
     ctx.fillRect(32, headerH - 20, W - 64, 2);
 
     const colW = (W - 64 - gap * (cols - 1)) / cols;
-    stats.forEach((s, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
-      const x = 32 + col * (colW + gap);
-      const y = headerH + row * rowH;
-      const boxH = rowH - 16;
+    let gy = headerH;
+    activeSections.forEach(sec => {
+      if(sec.label){
+        ctx.fillStyle = theme.antler;
+        ctx.font = "800 13px Nunito, sans-serif";
+        ctx.fillText(sec.label.toUpperCase(), 32, gy + 13);
+        gy += sectionLabelH;
+      }
+      sec.stats.forEach((s, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const x = 32 + col * (colW + gap);
+        const y = gy + row * rowH;
+        const boxH = rowH - 16;
 
-      ctx.fillStyle = theme.panel;
-      roundRect(ctx, x, y, colW, boxH, 10);
-      ctx.fill();
-      ctx.strokeStyle = theme.line;
-      ctx.lineWidth = 1;
-      roundRect(ctx, x, y, colW, boxH, 10);
-      ctx.stroke();
+        ctx.fillStyle = theme.panel;
+        roundRect(ctx, x, y, colW, boxH, 10);
+        ctx.fill();
+        ctx.strokeStyle = theme.line;
+        ctx.lineWidth = 1;
+        roundRect(ctx, x, y, colW, boxH, 10);
+        ctx.stroke();
 
-      ctx.fillStyle = s.color || theme.antler;
-      roundRect(ctx, x, y, colW, 4, 2);
-      ctx.fill();
+        ctx.fillStyle = s.color || theme.antler;
+        roundRect(ctx, x, y, colW, 4, 2);
+        ctx.fill();
 
-      ctx.fillStyle = s.color || theme.text;
-      ctx.font = "900 28px Nunito, sans-serif";
-      ctx.fillText(String(s.value), x + 16, y + 44);
+        ctx.fillStyle = s.color || theme.text;
+        ctx.font = "900 28px Nunito, sans-serif";
+        ctx.fillText(String(s.value), x + 16, y + 44);
 
-      ctx.fillStyle = theme.muted;
-      ctx.font = "600 12px Nunito, sans-serif";
-      ctx.fillText(s.label.toUpperCase(), x + 16, y + 64);
+        ctx.fillStyle = theme.muted;
+        ctx.font = "600 12px Nunito, sans-serif";
+        ctx.fillText(s.label.toUpperCase(), x + 16, y + 64);
+      });
+      const rows = Math.ceil(sec.stats.length / cols);
+      gy += rows * rowH + sectionGap;
     });
 
     ctx.fillStyle = theme.muted;
@@ -3061,14 +3414,14 @@
       { label:'Total Kills', value: tk, color: theme.total },
       { label:'Avg Kills / Diamond', value: dia === 0 ? '—' : (tk/dia).toFixed(2), color: theme.blaze },
     ];
-    if(g.rareTracking && g.rareCount) stats.push({ label:'Rare Fur', value: g.rareCount, color: theme.antler });
+    if(g.rareTracking && g.rareCount) stats.push({ label:'Rare Fur', value: g.rareCount, color: theme.rare });
     const canvas = drawShareCard({
       title: displayName,
       subtitle,
       badge: t.outcome || null,
-      stats,
+      sections: [ { label: null, stats } ],
       footer: `Logged ${formatDate(g.loggedAt)}`,
-    }, theme);
+    }, theme, { cols: 2 });
     return {
       canvas,
       filename: `${slugify(displayName)}-grind-card.png`,
@@ -3102,18 +3455,48 @@
     const sumDiamond = completed.reduce((s,e)=>s+totalDiamond(e),0);
     const sumL = completed.reduce((s,e)=>s+totalMaxLevel(e),0);
     const sumT = completed.reduce((s,e)=>s+totalKillsOf(e),0);
+    const sumRare = completed.reduce((s,e)=>s+(e.rareCount||0),0);
+    // Mirrors renderStats(): averages/totals include the live active grind (if still open)
+    // so the shared/downloaded card matches what's on screen.
+    const active = getActiveGrind();
+    const liveExtra = (active && active.status === 'open') ? active : null;
+    const sumDiamondLive = sumDiamond + (liveExtra ? totalDiamond(liveExtra) : 0);
+    const sumLLive = sumL + (liveExtra ? totalMaxLevel(liveExtra) : 0);
+    const sumTLive = sumT + (liveExtra ? totalKillsOf(liveExtra) : 0);
+    const sumRareLive = sumRare + (liveExtra ? (liveExtra.rareCount||0) : 0);
+    const hasLiveData = completed.length > 0 || !!liveExtra;
 
-    const stats = [
-      { label:'Total Grinds', value: totalAll, color: theme.text },
-      { label:'Completed', value: totalDone, color: theme.diamond3 },
-      { label:'Open', value: totalOpen, color: theme.antler },
+    const countStats = [
+      { label:'Total Grinds (all time)', value: totalAll, color: theme.text },
+      { label:'Open Grinds', value: totalOpen, color: theme.text },
+      { label:'Logged Grinds', value: totalDone, color: theme.text },
     ];
+
+    // Ordered so a 3-col grid lands diamond items in the left column, max-level items in
+    // the middle column, and kills items in the right column (rares fall to the next row's
+    // leftmost slot instead of getting their own column).
+    const avgStats = [];
+    if(hasLiveData){
+      avgStats.push(
+        { label:'Avg Kills / Diamond (all time)', value: sumDiamondLive === 0 ? '—' : (sumTLive/sumDiamondLive).toFixed(2), color: theme.diamond3 },
+        { label:'Avg Kills / Max-Level (all time)', value: sumLLive === 0 ? '—' : (sumTLive/sumLLive).toFixed(2), color: theme.antler }
+      );
+    }
     if(completed.length > 0){
-      stats.push(
-        { label:'Avg Diamonds / Grind', value: (sumDiamond/n).toFixed(1), color: theme.diamond3 },
-        { label:'Avg Max-Level / Grind', value: (sumL/n).toFixed(1), color: theme.antler },
+      avgStats.push(
         { label:'Avg Total Kills / Grind', value: (sumT/n).toFixed(1), color: theme.total },
-        { label:'Avg Kills / Diamond', value: sumDiamond === 0 ? '—' : (sumT/sumDiamond).toFixed(2), color: theme.blaze }
+        { label:'Avg Diamonds / Grind', value: (sumDiamond/n).toFixed(1), color: theme.diamond3 },
+        { label:'Avg Max-Level / Grind', value: (sumL/n).toFixed(1), color: theme.antler }
+      );
+    }
+
+    const totalStats = [];
+    if(hasLiveData){
+      totalStats.push(
+        { label:'Total Diamonds (all time)', value: sumDiamondLive, color: theme.diamond3 },
+        { label:'Total Max-Levels (all time)', value: sumLLive, color: theme.antler },
+        { label:'Total Kills (all time)', value: sumTLive, color: theme.total },
+        { label:'Total Rares', value: sumRareLive, color: theme.rare }
       );
     }
 
@@ -3121,14 +3504,18 @@
       title: 'My Great One Grind Overview',
       subtitle: 'All-time stats across every logged grind',
       badge: null,
-      stats,
+      sections: [
+        { label: 'Grind Counts', stats: countStats },
+        { label: 'Averages', stats: avgStats },
+        { label: 'All-Time Totals', stats: totalStats },
+      ],
       footer: `Generated ${formatDate(new Date().toISOString())}`,
-    }, theme);
+    }, theme, { cols: 3 });
     return {
       canvas,
       filename: 'great-one-grind-overview.png',
       shareTitle: 'My Great One Grind Overview',
-      shareText: `${totalDone} Great Ones logged, ${sumT} total kills all-time.`,
+      shareText: `${totalDone} Great Ones logged, ${sumTLive} total kills all-time.`,
     };
   }
 

@@ -24,7 +24,7 @@
   <li>Counter numbers (Diamond, Trolls, Total Kills, Rare Fur) can now be clicked and typed directly instead of only using +/- or hotkeys, with a confirmation step before the change applies</li>
   <li>Added an optional buzz/sound confirmation when a synced hotkey registers a kill — a per-grind toggle next to the grind status badge, plus a choice of five short sounds (Blip, Click, Ding, Heavy Click, Pop) with a live preview in Settings</li>
   <li>Fixed a bug where old keyboard bindings from long-removed counters could still silently add to Diamond/Total Kills with nothing on screen to explain it</li>
-  <li>Settings → Grind Defaults now lets you set whether Buzz/Ding and Rare Fur tracking start on or off for new grinds (Rare Fur tracking now defaults on for new installs)</li>
+  <li>Settings → Grind Defaults now lets you set whether Click/Ding and Rare Fur tracking start on or off for new grinds (Rare Fur tracking now defaults on for new installs)</li>
   <li>All Grinds Summary reorganized into a clean grid, and expanded with Avg kills per max-level, Total rares, Total diamonds, Total max-levels, and Total kills (all-time)</li>
   <li>"Completed grinds" renamed to "Logged grinds"</li>
   <li>Avg kills per diamond, Avg kills per max-level, Total rares, Total diamonds, Total max-levels, and Total kills now update live as you count kills on your current grind, instead of waiting until it's logged</li>
@@ -37,6 +37,7 @@
   <li>Removed the Correlation section entirely — Diamonds and Max-Level kills overlap by construction, which made the underlying math unreliable</li>
   <li>Removed separate Basic/Advanced counter styles — there's now one unified counter (Diamond / Trolls / Total Kills), and all Great One grinds (past and future) now feed into All Grinds Summary stats, trend, and comparison</li>
   <li>Added the ability to share a logged grind or your All Grinds overview as a branded image, with native share-sheet support and a download fallback</li>
+  <li>Share/Download Overview image now includes all the new All Grinds Summary stats, grouped into Grind Counts, Averages, and All-Time Totals sections</li>
   <li>Replaced the placeholder app icon with the tool's new logo (hexagon + antler mark)</li>
   <li>Moved backup/import controls out of the header into a new "Backup & Transfer Data" section under Settings</li>
   <li>Importing a backup now compares your current data to the file and lets you choose Merge (recommended) or Overwrite, instead of overwriting automatically</li>
@@ -53,6 +54,23 @@
   <li>Renamed "About/Feedback" to "About" and "FAQ" to "FAQ and Feedback"</li>
   <li>Added a profile picture and YouTube channel link to the About tab, and rewrote the About text, "Who is this tool for?", and "How was this tool created?" in the creator's own words</li>
   <li>Renamed the tool from "Great One Grind Counter" to "Great One Grind Log"</li>
+  <li>Added basic protection against the app being copied and reuploaded to another domain</li>
+  <li>Added a Terms of Service page, linked from the About tab, with a one-time agreement prompt on first use covering both the Terms of Service and Privacy Policy</li>
+  <li>Rewrote the Privacy Policy to accurately reflect what's actually collected — invite codes and feedback submissions only, no names or emails — and linked it from the About tab</li>
+  <li>Updated the non-affiliation disclaimer wording to match the official Fan Content Policy language from the game's developer</li>
+  <li>Added a direct contact email for questions about the Terms of Service and Privacy Policy, and to the About tab</li>
+  <li>When creating a custom species, you're no longer asked for a max level — it's set automatically</li>
+  <li>Fixed the custom species/map creation windows to match the app's visual style</li>
+  <li>Added an Export & Import section to the How to Use Tool tab, and colored its section headings to match the rest of the app</li>
+  <li>Added step-by-step instructions for installing the tool as a browser app on Chrome/Edge, Android, iPhone/iPad, Mac, and Firefox, with quick links from the About and Settings tabs</li>
+  <li>Optimized the layout for phones and tablets — larger buttons, bigger text, and stacked layouts on smaller screens</li>
+  <li>First-time users now get an optional pop-up after agreeing to the Terms/Privacy prompt, pointing them to the How to Use Tool tab for the browser-app install guide, data export/import, and the basics of the counter</li>
+  <li>Hovering the Click/Ding and Rare Fur toggles on the counter now shows a hint pointing to the Settings tab for more options</li>
+  <li>Deleting a logged grind from the Grind Log now asks for one extra confirmation before the usual delete confirmation, since it removes real trophy data</li>
+  <li>Fixed a bug where deleting a grind from a filtered "Select Other (Open) Grind" list wouldn't actually delete it</li>
+  <li>Renamed "Buzz/Ding" to "Click/Ding" everywhere the hotkey feedback toggle is referenced</li>
+  <li>Editing a logged grind's counter now shows a Save Changes / Revert to Original confirmation, including a before/after breakdown of each counter, instead of just closing</li>
+  <li>Trying to switch tabs while a logged grind's counter has unsaved edits, or while a rename box is open, now asks you to finish first instead of silently discarding your changes</li>
 </ul>
 
 <h2>1.2.0 — Phase 2: Netlify Hosting</h2>

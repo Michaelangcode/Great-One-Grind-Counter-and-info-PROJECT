@@ -23,6 +23,38 @@
         </div>
       </div>
     </div>
+    <div id="tosGate" class="modal" style="z-index:99998;">
+      <div class="modal-box" style="text-align:left;max-width:380px;">
+        <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Before You Continue</h3>
+        <p style="font-size:13px;">Please review the following before using Great One Grind Log:</p>
+        <label class="del-two-step-label" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:10px;color:var(--muted);text-align:left;">
+          <input type="checkbox" id="tosCheck">
+          <span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener" style="color:var(--antler, #c9a14a);">Terms of Service</a>.</span>
+        </label>
+        <label class="del-two-step-label" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:16px;color:var(--muted);text-align:left;">
+          <input type="checkbox" id="privacyCheck">
+          <span>I have read and agree to the <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--antler, #c9a14a);">Privacy Policy</a>.</span>
+        </label>
+        <div class="modal-actions">
+          <button id="tosGateAgree" class="confirm-go" disabled>Agree &amp; Continue</button>
+        </div>
+      </div>
+    </div>
+    <div id="welcomeGuideModal" class="modal hidden" style="z-index:99997;">
+      <div class="modal-box" style="text-align:left;max-width:380px;">
+        <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">New Here? Check Out the Guide</h3>
+        <p style="font-size:13px;">The <strong>How to Use Tool</strong> tab walks you through everything, including:</p>
+        <ul style="font-size:12.5px;color:var(--muted);margin:0 0 16px;padding-left:20px;line-height:1.7;">
+          <li>Installing the tool as a browser app on your phone or computer</li>
+          <li>Exporting and importing your data to back it up or move devices</li>
+          <li>The basics of using the counter to track your grind</li>
+        </ul>
+        <div class="modal-actions">
+          <button id="welcomeGuideDismiss">No Thanks</button>
+          <button id="welcomeGuideGo" class="confirm-go">Take Me There</button>
+        </div>
+      </div>
+    </div>
     <div class="app">
   <div class="wrap" id="appRoot">
     <div class="loading-note">Loading your grind log…</div>
@@ -237,6 +269,14 @@ if (reg.waiting) {
   ];
 
   var gate = document.getElementById('betaGate');
+  var BETA_HOST = 'beta--greatonegrindlog.netlify.app';
+  // The invite-code gate only applies to the beta deploy. Main/production and local
+  // testing are open to everyone with no code required.
+  if (window.location.hostname !== BETA_HOST) {
+    gate.style.display = 'none';
+    return;
+  }
+
   if (localStorage.getItem(GATE_KEY) === 'true') {
     gate.style.display = 'none';
     return;
@@ -270,6 +310,56 @@ if (reg.waiting) {
       errorBox.textContent = 'Invalid code. Please try again.';
       errorBox.style.display = 'block';
     }
+  });
+})();
+</script>
+<script>
+(function() {
+  // Bump the suffix if the Terms of Service or Privacy Policy content materially changes,
+  // so everyone is re-prompted to agree to the new versions instead of carrying over old consent.
+  var LEGAL_KEY = 'legalAgreedV1';
+  var tosGate = document.getElementById('tosGate');
+  if (localStorage.getItem(LEGAL_KEY) === 'true') {
+    tosGate.style.display = 'none';
+    return;
+  }
+  var tosCheck = document.getElementById('tosCheck');
+  var privacyCheck = document.getElementById('privacyCheck');
+  var agreeBtn = document.getElementById('tosGateAgree');
+
+  function updateBtn() {
+    agreeBtn.disabled = !(tosCheck.checked && privacyCheck.checked);
+  }
+  tosCheck.addEventListener('change', updateBtn);
+  privacyCheck.addEventListener('change', updateBtn);
+
+  // First-time-only optional pointer to the How to Use Tool tab, shown right after
+  // a brand-new user clears the ToS/Privacy gate. Never shown again once dismissed
+  // (either button), and never shown to existing users who already had LEGAL_KEY set.
+  var WELCOME_KEY = 'welcomeGuideSeenV1';
+  function maybeShowWelcomeGuide() {
+    if (localStorage.getItem(WELCOME_KEY) === 'true') return;
+    var modal = document.getElementById('welcomeGuideModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    document.getElementById('welcomeGuideDismiss').addEventListener('click', function() {
+      localStorage.setItem(WELCOME_KEY, 'true');
+      modal.classList.add('hidden');
+    });
+    document.getElementById('welcomeGuideGo').addEventListener('click', function() {
+      localStorage.setItem(WELCOME_KEY, 'true');
+      modal.classList.add('hidden');
+      var ctBtn = document.querySelector('.tab-btn[data-tab="counter-tool"]');
+      if (ctBtn) ctBtn.click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  agreeBtn.addEventListener('click', function() {
+    if (agreeBtn.disabled) return;
+    localStorage.setItem(LEGAL_KEY, 'true');
+    tosGate.style.display = 'none';
+    maybeShowWelcomeGuide();
   });
 })();
 </script>
