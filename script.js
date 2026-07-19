@@ -879,7 +879,7 @@
               <div class="count-display" id="ic-${grindId}-rareCount">0</div>
               <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
             </div>
-            <div class="rare-note">Does not affect any other counter.</div>
+            <div class="rare-note">Does not affect any other counter, including Total Kills.</div>
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
@@ -1779,7 +1779,7 @@
           <p class="info-text" style="margin-top:10px;">For example: if you log 5 diamonds, 3 trolls, and 1 other kill, Total Kills shows <strong>9</strong> (5+3+1).</p>
 
           <h3 class="how-it-works-subhead">Rare fur counter</h3>
-          <p class="info-text">An optional <strong>Rare Fur</strong> counter is available too. Enable it with the toggle if you want to track how many rare-furred animals you kill during a grind. This counter is completely independent &mdash; it does not feed into any other total or affect any statistics.</p>
+          <p class="info-text">An optional <strong>Rare Fur</strong> counter is available too. Enable it with the toggle if you want to track how many rare-furred animals you kill during a grind. This counter is completely independent &mdash; it does not feed into Total Kills or any other total or statistic.</p>
         </section>
 
         <section>
@@ -2471,7 +2471,7 @@
               <div class="count-display" id="rareCount">0</div>
               <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
             </div>
-            <div class="rare-note">Does not affect any other counter. Rare fur spawn rates are fixed and cannot be influenced by kill count or kill type.</div>
+            <div class="rare-note">Does not affect any other counter, including Total Kills. Rare fur spawn rates are fixed and cannot be influenced by kill count or kill type.</div>
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
