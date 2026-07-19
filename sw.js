@@ -1,4 +1,4 @@
-const CACHE_NAME = 'grind-tracker-v51';
+const CACHE_NAME = 'grind-tracker-v52';
 const ASSETS = [
   './',
   './index.html',
@@ -30,8 +30,20 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network-first: always try to fetch the latest version from the network.
+// Falls back to the cached copy only when offline, and keeps the offline
+// cache updated with whatever was last successfully fetched. This means
+// new deploys show up automatically on next reload — no manual CACHE_NAME
+// bump required.
 self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request))
+    fetch(e.request)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
