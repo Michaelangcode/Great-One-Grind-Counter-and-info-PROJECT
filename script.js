@@ -1666,6 +1666,93 @@
     }
   }
 
+  // --- Phone-only: the Avg Kills/Diamond and Session Goal widgets can be dragged and
+  // snapped to any of the four screen corners, remembered per-device via localStorage.
+  // Fully inert on desktop/laptop — every entry point is gated on the same phone-width
+  // check, so nothing here ever sets an inline style outside that width.
+  function isPhoneViewport(){
+    return window.matchMedia('(max-width:640px)').matches;
+  }
+  function otherFloatingWidget(el){
+    return el.id === 'liveStatWidget' ? document.getElementById('sessionGoalWidget') : document.getElementById('liveStatWidget');
+  }
+  function applyWidgetCorner(el, corner, extraOffset){
+    const margin = 10, off = extraOffset || 0;
+    el.style.left = el.style.right = el.style.top = el.style.bottom = 'auto';
+    if(corner === 'tl'){ el.style.top = (margin + off) + 'px'; el.style.left = margin + 'px'; }
+    else if(corner === 'tr'){ el.style.top = (margin + off) + 'px'; el.style.right = margin + 'px'; }
+    else if(corner === 'bl'){ el.style.bottom = (margin + off) + 'px'; el.style.left = margin + 'px'; }
+    else { el.style.bottom = (margin + off) + 'px'; el.style.right = margin + 'px'; }
+    el.dataset.corner = corner;
+  }
+  // If both widgets land in the same corner, push the second one further out past the
+  // first rather than letting them overlap. Safe to call anytime — no-ops on desktop
+  // since dataset.corner is never set there.
+  function refreshWidgetStacking(){
+    const live = document.getElementById('liveStatWidget');
+    const goal = document.getElementById('sessionGoalWidget');
+    if(!live || !goal) return;
+    if(!live.dataset.corner || !goal.dataset.corner) return;
+    if(goal.style.display === 'none' || live.style.display === 'none') return;
+    if(live.dataset.corner === goal.dataset.corner){
+      const liveRect = live.getBoundingClientRect();
+      applyWidgetCorner(goal, goal.dataset.corner, liveRect.height + 10);
+    } else {
+      applyWidgetCorner(goal, goal.dataset.corner, 0);
+    }
+  }
+  function setupDraggableWidget(el, storageKey){
+    if(!el) return;
+    let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+    function onStart(e){
+      if(!isPhoneViewport()) return;
+      const t = e.touches[0];
+      const rect = el.getBoundingClientRect();
+      startX = t.clientX; startY = t.clientY;
+      startLeft = rect.left; startTop = rect.top;
+      el.style.left = startLeft + 'px';
+      el.style.top = startTop + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+      dragging = true;
+      el.classList.add('widget-dragging');
+    }
+    function onMove(e){
+      if(!dragging) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      const dx = t.clientX - startX, dy = t.clientY - startY;
+      const rect = el.getBoundingClientRect();
+      const maxLeft = window.innerWidth - rect.width - 2;
+      const maxTop = window.innerHeight - rect.height - 2;
+      el.style.left = Math.max(2, Math.min(maxLeft, startLeft + dx)) + 'px';
+      el.style.top = Math.max(2, Math.min(maxTop, startTop + dy)) + 'px';
+    }
+    function onEnd(){
+      if(!dragging) return;
+      dragging = false;
+      el.classList.remove('widget-dragging');
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+      const corner = (cy < window.innerHeight / 2 ? 't' : 'b') + (cx < window.innerWidth / 2 ? 'l' : 'r');
+      applyWidgetCorner(el, corner);
+      try{ localStorage.setItem(storageKey, corner); }catch(e){}
+      refreshWidgetStacking();
+    }
+    el.addEventListener('touchstart', onStart, { passive:true });
+    el.addEventListener('touchmove', onMove, { passive:false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+
+    el._restoreWidgetCorner = function(){
+      if(!isPhoneViewport()) return;
+      let corner = 'tr';
+      try{ corner = localStorage.getItem(storageKey) || 'tr'; }catch(e){}
+      applyWidgetCorner(el, corner);
+    };
+  }
+
   function buildShell(){
     root.innerHTML = `
       <header class="masthead">
@@ -2132,6 +2219,15 @@
       e.target.value = '';
     });
     document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+    setupDraggableWidget(document.getElementById('liveStatWidget'), 'liveStatWidgetCorner');
+    setupDraggableWidget(document.getElementById('sessionGoalWidget'), 'sessionGoalWidgetCorner');
+    const liveStatEl = document.getElementById('liveStatWidget');
+    const sessionGoalEl = document.getElementById('sessionGoalWidget');
+    if(liveStatEl && liveStatEl._restoreWidgetCorner) liveStatEl._restoreWidgetCorner();
+    if(sessionGoalEl && sessionGoalEl._restoreWidgetCorner) sessionGoalEl._restoreWidgetCorner();
+    refreshWidgetStacking();
+
     function goToInstallGuide(){
       switchTab('counter-tool');
       setTimeout(() => {
@@ -2235,6 +2331,7 @@
           <button class="sg-set-btn" id="sgSetBtn">+ Set a kill goal</button>
         </div>`;
       document.getElementById('sgSetBtn').addEventListener('click', () => openSessionGoalModal());
+      refreshWidgetStacking();
       return;
     }
 
@@ -2267,6 +2364,7 @@
       <div class="sg-pct">${pctLabel}</div>`;
 
     document.getElementById('sgEditBtn').addEventListener('click', () => openSessionGoalModal(true));
+    refreshWidgetStacking();
   }
 
   function showGoalMetModal(){
