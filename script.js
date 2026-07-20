@@ -884,7 +884,7 @@
               <div class="count-display" id="ic-${grindId}-rareCount">0</div>
               <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
             </div>
-            <div class="rare-note">Does not affect any other counter, including Total Kills.</div>
+            <div class="rare-note" data-tip="Rare fur spawn rates are fixed percentages and cannot be manipulated.">Does not affect any other counter, including Total Kills.</div>
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
@@ -2583,7 +2583,7 @@
               <div class="count-display" id="rareCount">0</div>
               <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
             </div>
-            <div class="rare-note">Does not affect any other counter, including Total Kills. Rare fur spawn rates are fixed and cannot be influenced by kill count or kill type.</div>
+            <div class="rare-note" data-tip="Rare fur spawn rates are fixed percentages and cannot be manipulated.">Does not affect any other counter, including Total Kills.</div>
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
@@ -3934,7 +3934,7 @@
     { id:'pressure', term:'Pressure', matches:['pressure'],
       def:'Pressure results when an animal or animals are killed. It appears as a purple splotch centered on the area you shot the animal (not where the animal died). Causing too much hunting pressure in one area (at least 4 animals killed without a hunting structure, or 15 animals with one) will cause any zones in the area to be deleted. This "deletion" doesn\u2019t erase the zone \u2014 it just moves to a new place, usually nearby. Pressure in one area can be cleared by creating pressure in another area.' },
     { id:'rare', term:'Rare', matches:['rare'],
-      def:'An animal with a rare fur type. Different species can sometimes share the same rare fur type, or have completely unique ones \u2014 reference a fur chart to round out your knowledge.' },
+      def:'An animal with a rare fur type. Different species can sometimes share the same rare fur type, or have completely unique ones \u2014 reference a fur chart to round out your knowledge. Rare fur spawn rates are fixed percentages and cannot be manipulated.' },
     { id:'rotation', term:'Rotation', matches:['rotation','rotations','rotating','rotates'],
       def:'A rotation is a set order in which a player checks their zones for animals to kill. A set rotation is crucial no matter what style of grind you\u2019re using, or whether you\u2019re Herd Managing or not. This is because animals don\u2019t respawn immediately \u2014 rotating through main zones in a repetitive order gives killed animals time to respawn, creating a smooth and efficient grind.' },
     { id:'shot-down', term:'Shot down', matches:['shot down'],
@@ -4143,14 +4143,30 @@
     (HOTKEY_SOUND_PLAYERS[hotkeySound] || playHotkeyClick)();
   }
 
-  // Global keydown → fire +1 on bound counter
+  // Global keydown → fire +1 on bound counter. Hotkeys should only ever affect a counter
+  // that's actually visible on screen: either the Current Grind tab (the normal case), or
+  // a Grind Log entry's inline "Editing Counter" panel if one is open. Any other tab (Info,
+  // Settings, About, Summary, etc.) has no counter in view, so a hotkey press there used to
+  // silently increment the active grind in the background with no visible feedback — that's
+  // now blocked. Irrelevant on phone anyway (no physical keyboard), so no platform check needed.
   document.addEventListener('keydown', function(e){
     // Ignore if typing in an input/textarea
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     // Ignore modifier-only keys
     if(['Control','Alt','Shift','Meta'].includes(e.key)) return;
-    const g = getActiveGrind();
+
+    let g, editingGrindId = null;
+    // Require activeTab==='golog' too, not just openCounterEdit — if the panel was opened
+    // but never touched, switching tabs away from it is allowed (nothing unsaved to block
+    // it), which would otherwise leave openCounterEdit pointed at a now-hidden panel.
+    if(openCounterEdit && activeTab === 'golog'){
+      g = openCounterEdit.g;
+      editingGrindId = openCounterEdit.grindId;
+    } else if(activeTab === 'current'){
+      g = getActiveGrind();
+    }
     if(!g) return;
+
     Object.entries(keybinds).forEach(([target, boundKey]) => {
       if(!VALID_KEYBIND_TARGETS.includes(target)) return;
       if(e.key === boundKey){
@@ -4158,8 +4174,15 @@
         // Rare counter only fires if tracking is on
         if(target === 'rareCount' && !g.rareTracking) return;
         g[target] = Math.max(0, (g[target] || 0) + 1);
-        renderCounters(target);
-        renderLiveStat();
+        if(editingGrindId){
+          renderInlineCounters(g, editingGrindId);
+          if(g.id === activeGrindId) renderLiveStat();
+          const statRow = document.querySelector(`#go-inline-counter-${editingGrindId}`)?.closest('.go-log-card')?.querySelector('.go-log-stats-row');
+          if(statRow) updateGoLogStatRow(g, statRow);
+        } else {
+          renderCounters(target);
+          renderLiveStat();
+        }
         renderStats();
         if(g.status === 'completed'){ renderChart(); }
         markDirty();
