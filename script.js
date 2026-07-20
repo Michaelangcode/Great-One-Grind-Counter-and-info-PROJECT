@@ -1829,7 +1829,7 @@
           <div id="chartArea"></div>
         </section>
         <section>
-          <h2>Grind Comparison</h2>
+          <h2>Map Comparison</h2>
           <p class="corr-caveat">Select a species and 2 or more maps to compare averages across your logged grinds for that combination.</p>
           <div id="grindCompareArea"></div>
         </section>
@@ -1897,7 +1897,7 @@
           <h2>Analytics</h2>
           <p class="info-text">Once you have at least one Great One grind logged, the <strong>All Grinds Summary</strong> tab begins to populate. (Non-Great-One grinds are excluded, since those stats are only meaningful for Great One grinds.)</p>
           <p class="info-text" style="margin-top:10px;">It shows an overview of averages &mdash; kills, diamonds, diamond rate, and more &mdash; across all your grinds, plus a trend chart showing how your kill counts have moved over time.</p>
-          <p class="info-text" style="margin-top:10px;"><strong>Grind Comparison</strong> lets you compare same-species grinds side-by-side across different maps, and <strong>Grinds by Species</strong> gives a full breakdown of how many grinds (open or completed) you have per species.</p>
+          <p class="info-text" style="margin-top:10px;"><strong>Map Comparison</strong> lets you compare same-species grinds side-by-side across different maps, and <strong>Grinds by Species</strong> gives a full breakdown of how many grinds (open or completed) you have per species.</p>
         </section>
 
         <section>
@@ -3027,12 +3027,7 @@
       // Grind count note
       const countNote = mapData.map(d => `${escapeHtml(d.map)}: ${d.grinds} grind${d.grinds!==1?'s':''}`).join(' · ');
 
-      // Fit scale: shrink so entire chart fits in both dimensions
-      const containerW = Math.min(680, window.innerWidth - 48);
       const viewportH = 300;
-      const fitScaleX = Math.min(1, containerW / totalW);
-      const fitScaleY = Math.min(1, (viewportH - 12) / chartH);
-      const fitScale = Math.min(fitScaleX, fitScaleY);
 
       chartEl.innerHTML = `
         <div style="margin-top:14px;">
@@ -3053,11 +3048,22 @@
       `;
 
       // Zoom/pan state
-      let scale = fitScale;
-      let panX = 0, panY = 0;
       const inner = document.getElementById('cInner');
       const viewport = document.getElementById('cViewport');
       const label = document.getElementById('czoomLabel');
+
+      // Fit scale: shrink so entire chart fits in both dimensions. Uses the pan
+      // viewport's real measured width, not a guessed/capped estimate — previously this
+      // was capped at a guessed 680px even when the real column was wider (e.g. on large
+      // monitors), so the chart rendered smaller than necessary and "Fit"/centering were
+      // computed against two different widths.
+      const containerW = viewport.clientWidth || Math.min(680, window.innerWidth - 48);
+      const fitScaleX = Math.min(1, containerW / totalW);
+      const fitScaleY = Math.min(1, (viewportH - 12) / chartH);
+      const fitScale = Math.min(fitScaleX, fitScaleY);
+
+      let scale = fitScale;
+      let panX = 0, panY = 0;
 
       function applyTransform(){
         const scaledW = totalW * scale;
