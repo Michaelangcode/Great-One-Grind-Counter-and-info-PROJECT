@@ -184,6 +184,9 @@
   .grind-meta-col{display:flex; flex-direction:column; align-items:flex-start; gap:4px;}
   .grind-meta-label{font-size:9.5px; letter-spacing:.4px; text-transform:uppercase; color:var(--muted); font-weight:700;}
   .platform-tag{font-size:10.5px; color:var(--muted); border:1px solid var(--line); padding:3px 8px; border-radius:3px;}
+  /* Desktop/phone label swap — .lbl-mobile is hidden by default, shown only in the phone
+     media query, so the same markup can carry two wordings without JS branching. */
+  .lbl-mobile{display:none;}
 
   .rename-btn{background:none; border:1px solid var(--line); border-radius:4px; color:var(--muted); font-size:13px; width:26px; height:26px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex:0 0 auto;}
   .rename-btn:hover{border-color:var(--diamond3); color:var(--diamond3);}
@@ -708,18 +711,56 @@
 
   /* Phone (≤640px): stacked layouts, max tap targets, larger type throughout */
   @media (max-width:640px){
+    /* iOS auto-zooms the page on focus for any text input under 16px — this is what
+       makes typing (e.g. the rename box) suddenly zoom in. Forcing 16px on every
+       typeable field prevents the zoom from triggering at all, everywhere in the app. */
+    input[type="text"], input[type="number"], input[type="email"], input[type="search"], textarea, select{font-size:16px !important;}
     .app{padding:20px 12px 50px;}
+    .live-stat{position:fixed; top:10px; right:10px; width:100px; margin:0; padding:6px 8px; box-shadow:0 4px 14px rgba(0,0,0,.5); z-index:10; border-radius:6px;}
+    .live-stat .live-label{font-size:8px;}
+    .live-stat .live-value{font-size:16px;}
+    .live-stat .live-sub{font-size:8px;}
+    .session-goal-widget{position:fixed; top:calc(10px + 58px + 6px); right:10px; width:100px; margin:0; padding:6px 8px 8px;}
+    .session-goal-widget .sg-kills{font-size:15px;}
+    .session-goal-widget .sg-goal{font-size:10px;}
+    .session-goal-widget .sg-set-btn{font-size:9px; padding:4px 6px;}
     .counters{flex-direction:column;}
     .counter-card, .counter-card.rare{flex:1 1 auto; width:100%;}
     .total-rare-row{flex-direction:column; flex:1 1 auto;}
     .ctrl-btn{width:46px; height:46px; font-size:22px;}
+    .ctrl-btn:active{transform:scale(0.90); background:var(--line);}
     .go-inline-counter .ctrl-btn{width:42px; height:42px; font-size:20px;}
     .count-display{font-size:34px;}
     .counter-controls{gap:10px;}
-    .tabs{gap:2px;}
-    .tab-btn{padding:12px 10px; font-size:14px;}
-    .tab-group-label{font-size:10px;}
+    .kb-footer{display:none;}
+    .tabs{gap:6px 10px;}
+    .tabs > div:nth-child(1){flex-basis:100%;}
+    .tabs > div:nth-child(2){display:none;}
+    .tab-btn{padding:9px 8px; font-size:12.5px;}
+    .tab-group-label{font-size:9px; padding:0 3px 4px 3px;}
+    .tab-group-btns{gap:3px;}
+    .lbl-desktop{display:none;}
+    .lbl-mobile{display:inline;}
     .stats-grid{grid-template-columns:repeat(2, minmax(0,1fr));}
+    /* Overview stat boxes reorder for phone only, via the CSS `order` property — the
+       desktop grid-column/grid-row placement (set inline per box) is untouched, and at
+       ≤900px it's forced to auto-placement anyway, so `order` alone decides sequence here.
+       Each selector targets a box by its unique desktop grid-column/grid-row signature so
+       this keeps working correctly regardless of which optional boxes are present.
+       Target order: Total grinds, Open grinds, Logged grinds, Avg total kills/grind,
+       Avg diamonds/grind, Avg max-level/grind, Avg kills/diamond, Avg kills/max-level,
+       Total diamonds, Total max-levels, Total rares, Total kills. */
+    .stats-grid .stat-box[style*="grid-column:1; grid-row:2"]{order:2;}  /* Open grinds */
+    .stats-grid .stat-box[style*="grid-column:2; grid-row:2"]{order:3;}  /* Logged grinds */
+    .stats-grid .stat-box[style*="grid-column:6; grid-row:1"]{order:4;}  /* Avg total kills / grind */
+    .stats-grid .stat-box[style*="grid-column:4; grid-row:1"]{order:5;}  /* Avg diamonds / grind */
+    .stats-grid .stat-box[style*="grid-column:5; grid-row:1"]{order:6;}  /* Avg max-level / grind */
+    .stats-grid .stat-box[style*="grid-column:2; grid-row:1"]{order:7;}  /* Avg kills per diamond */
+    .stats-grid .stat-box[style*="grid-column:3; grid-row:1"]{order:8;}  /* Avg kills per max-level */
+    .stats-grid .stat-box[style*="grid-column:4; grid-row:2"]{order:9;}  /* Total diamonds */
+    .stats-grid .stat-box[style*="grid-column:5; grid-row:2"]{order:10;} /* Total max-levels */
+    .stats-grid .stat-box[style*="grid-column:3; grid-row:2"]{order:11;} /* Total rares */
+    .stats-grid .stat-box[style*="grid-column:6; grid-row:2"]{order:12;} /* Total kills */
     .stat-box{padding:14px 12px; min-height:70px;}
     .stat-num{font-size:22px;}
     .stat-lbl{font-size:12px;}
@@ -733,6 +774,9 @@
     .rename-btn, .go-rename-btn{width:36px; height:36px;}
     .del-btn, .edit-btn{width:34px; height:34px; font-size:14px;}
     .share-btn-group{gap:10px;}
+    /* About tab feedback/legal links: force 2x2 instead of the 3-row wrap that happens
+       when buttons just size to their own text width. */
+    .about-feedback-btns .share-btn{flex:1 1 calc(50% - 5px); box-sizing:border-box; text-align:center;}
     .share-btn, .go-share-btn, .go-download-btn, .go-edit-counter-btn, .go-revert-btn, .go-log-delete-btn, .kofi-btn{padding:10px 16px; font-size:13.5px;}
     .theme-toggle-btn{padding:8px 14px; font-size:13px;}
     .del-two-step-label input[type="checkbox"]{width:18px; height:18px;}

@@ -575,6 +575,11 @@
         // Keep GO log stat row live
         const statRow = document.querySelector(`#go-inline-counter-${grindId}`)?.closest('.go-log-card')?.querySelector('.go-log-stats-row');
         if(statRow) updateGoLogStatRow(g, statRow);
+        // Phone-only: +/- taps also get the click/ding feedback (hotkeys already had this).
+        if(g.buzzEnabled && window.matchMedia('(max-width:640px)').matches){
+          if(navigator.vibrate) navigator.vibrate(40);
+          playHotkeySound();
+        }
       }
       function startHold(){ applyDelta(); holdTimer = setTimeout(() => { repeatTimer = setInterval(applyDelta, 80); }, 750); }
       function stopHold(){ clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer=null; repeatTimer=null; }
@@ -2022,7 +2027,8 @@
 
           <h3 class="how-it-works-subhead">Feedback and Future Changes</h3>
           <p class="info-text">This tool is still actively being developed, and if you're using an early/beta version, that means your feedback has a direct hand in what gets built or fixed next (and even if you aren't in beta, I'd still love to hear your feedback and experience with the tool! I might even implement it if it's a solid addition! Who knows?) Please let me know what you would like to see!</p>
-          <div class="share-btn-group" style="margin-top:12px;">
+          <p class="info-note">Feedback is genuinely appreciated and does directly shape what gets worked on — however, it is not guaranteed that every suggestion will be implemented. I reserve the right to distinguish what is added and when, based on what is best for the tool as a whole.</p>
+          <div class="share-btn-group about-feedback-btns" style="margin-top:12px;">
             <a href="https://docs.google.com/forms/d/e/1FAIpQLScU90d8Ei4LFA3rb4ypUlC6rddMC9_ZJAhuuoNb7yFagav-zg/viewform" target="_blank" rel="noopener" class="share-btn">💬 Report a Bug / Give Feedback</a>
             <a href="changelog.html" target="_blank" rel="noopener" class="share-btn">📋 View Changelog</a>
             <a href="terms.html" target="_blank" rel="noopener" class="share-btn">📄 Terms of Service</a>
@@ -2530,7 +2536,7 @@
         <div class="grind-header-meta">
           <div class="grind-meta-col"><span class="grind-meta-label">Grind status:</span><span class="cycle-flag">${escapeHtml(statusLabel)}</span></div>
           <div class="grind-meta-col"><span class="grind-meta-label">Platform:</span><span class="platform-tag">${escapeHtml(g.platform)}</span></div>
-          <div class="grind-meta-col"><span class="grind-meta-label">Click/Ding on hotkey:</span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle hotkey click and ding feedback" data-hint="More advanced settings in the &quot;Settings&quot; section!"><span class="toggle-switch-knob"></span></button></div>
+          <div class="grind-meta-col"><span class="grind-meta-label"><span class="lbl-desktop">Click/Ding on hotkey:</span><span class="lbl-mobile">Click/Ding on +/- buttons:</span></span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle click and ding feedback" data-hint="More advanced settings in the &quot;Settings&quot; section!"><span class="toggle-switch-knob"></span></button></div>
         </div>
       </div>
       <div id="renameArea" style="display:none;" class="rename-area">
@@ -2567,6 +2573,13 @@
         if(active.status === 'completed'){ renderChart(); }
         markDirty();
         scheduleSave();
+        // Phone-only: +/- taps also get the click/ding feedback (hotkeys already had this).
+        // navigator.vibrate has no effect on iOS Safari/PWA (unsupported), but costs nothing
+        // to attempt — it'll work automatically wherever the platform does support it.
+        if(active.buzzEnabled && window.matchMedia('(max-width:640px)').matches){
+          if(navigator.vibrate) navigator.vibrate(40);
+          playHotkeySound();
+        }
       }
 
       function startHold(){
