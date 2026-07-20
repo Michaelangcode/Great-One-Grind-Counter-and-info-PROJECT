@@ -11,7 +11,7 @@
     <meta name="theme-color" content="#000000">
 </head>
 <body>
-    <div id="betaGate" class="modal" style="z-index:99999;">
+    <div id="betaGate" class="modal hidden" style="z-index:99999;">
       <div class="modal-box" style="text-align:left;">
         <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Beta Access</h3>
         <p>Enter your invite code to continue.</p>
@@ -26,7 +26,7 @@
         </div>
       </div>
     </div>
-    <div id="tosGate" class="modal" style="z-index:99998;">
+    <div id="tosGate" class="modal hidden" style="z-index:99998;">
       <div class="modal-box" style="text-align:left;max-width:380px;">
         <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Before You Continue</h3>
         <p style="font-size:13px;">Please review the following before using Great One Grind Log:</p>
@@ -179,16 +179,38 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then((reg) => {
-if (reg.waiting) {
+      function showUpdateBanner() {
         document.getElementById('updateBanner').style.display = 'flex';
+      }
+      // Cover the case where an update already finished installing before this
+      // .then() ran (a real race with 'updatefound'), not just the waiting case.
+      if (reg.waiting) {
+        showUpdateBanner();
+      }
+      if (reg.installing) {
+        reg.installing.addEventListener('statechange', function() {
+          if (this.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
       }
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
+        if (!nw) return;
         nw.addEventListener('statechange', () => {
           if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            document.getElementById('updateBanner').style.display = 'flex';
+            showUpdateBanner();
           }
         });
+      });
+
+      // The checks above only catch an update that exists at page-load time.
+      // Long sessions (a grind can run for a while) never re-check otherwise, so
+      // the banner only ever seemed to show up on a manual reload. Re-check
+      // periodically and whenever the tab/app regains focus.
+      setInterval(() => { reg.update(); }, 5 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
       });
     });
     let reloading = false;
@@ -274,16 +296,17 @@ if (reg.waiting) {
   var gate = document.getElementById('betaGate');
   var BETA_HOST = 'beta--greatonegrindlog.netlify.app';
   // The invite-code gate only applies to the beta deploy. Main/production and local
-  // testing are open to everyone with no code required.
+  // testing are open to everyone with no code required. The gate starts hidden in
+  // HTML/CSS so it never flashes on load; this script only ever reveals it, never hides it.
   if (window.location.hostname !== BETA_HOST) {
-    gate.style.display = 'none';
     return;
   }
 
   if (localStorage.getItem(GATE_KEY) === 'true') {
-    gate.style.display = 'none';
     return;
   }
+
+  gate.classList.remove('hidden');
 
   async function sha256(text) {
     var enc = new TextEncoder().encode(text);
@@ -305,7 +328,7 @@ if (reg.waiting) {
     var hash = await sha256(code);
     if (VALID_HASHES.indexOf(hash) !== -1) {
       localStorage.setItem(GATE_KEY, 'true');
-      gate.style.display = 'none';
+      gate.classList.add('hidden');
       var body = new URLSearchParams();
       body.append(CODE_FIELD, code);
       fetch(FORM_URL, { method: 'POST', mode: 'no-cors', body: body }).catch(function(){});
@@ -322,10 +345,11 @@ if (reg.waiting) {
   // so everyone is re-prompted to agree to the new versions instead of carrying over old consent.
   var LEGAL_KEY = 'legalAgreedV1';
   var tosGate = document.getElementById('tosGate');
+  // Gate starts hidden in HTML/CSS so it never flashes on load; only reveal if needed.
   if (localStorage.getItem(LEGAL_KEY) === 'true') {
-    tosGate.style.display = 'none';
     return;
   }
+  tosGate.classList.remove('hidden');
   var tosCheck = document.getElementById('tosCheck');
   var privacyCheck = document.getElementById('privacyCheck');
   var agreeBtn = document.getElementById('tosGateAgree');
@@ -361,7 +385,7 @@ if (reg.waiting) {
   agreeBtn.addEventListener('click', function() {
     if (agreeBtn.disabled) return;
     localStorage.setItem(LEGAL_KEY, 'true');
-    tosGate.style.display = 'none';
+    tosGate.classList.add('hidden');
     maybeShowWelcomeGuide();
   });
 })();

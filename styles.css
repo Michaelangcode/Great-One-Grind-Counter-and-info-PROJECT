@@ -142,7 +142,7 @@
   .link-note{font-size:12px; color:var(--muted); margin:0 0 5px; border-left:2px solid var(--line); padding-left:10px;}
   .diamond-tally{font-size:12px; color:var(--text); margin:0 0 6px; border-left:2px solid var(--diamond3); padding-left:10px;}
   .corr-caveat{font-size:12px; color:var(--muted); margin:0 0 14px; border-left:2px solid var(--line); padding-left:10px;}
-  .storage-note{font-size:11.5px; color:var(--muted); margin-top:14px; text-align:center;}
+  .storage-note{font-size:11.5px; color:var(--muted); margin-top:14px; text-align:left;}
 
   .info-text{font-size:13.5px; color:var(--text); margin:0; line-height:1.65;}
   .info-note{font-size:11.5px; color:var(--muted); margin-top:10px;}
@@ -638,7 +638,9 @@
   .how-it-works-list li em{color:var(--antler); font-style:normal; font-weight:700;}
 
   .compare-controls{display:flex; flex-direction:column; gap:12px; margin-bottom:4px;}
-  .compare-row{display:flex; align-items:flex-start; gap:12px;}
+  /* flex-wrap is a no-op unless a row's contents (label + select) ever get too wide to
+     fit — a defensive addition, not a visual change on its own. */
+  .compare-row{display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;}
   .compare-label{font-size:13px; font-weight:700; color:var(--muted); min-width:70px; padding-top:6px; font-family:'Nunito',sans-serif;}
   .compare-hint{font-weight:400; font-size:11.5px; color:var(--muted);}
   .compare-select{background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 10px; font-family:'Nunito',sans-serif; font-size:13.5px; cursor:pointer;}
@@ -651,7 +653,10 @@
   .compare-zoom-btn:hover{background:var(--line);}
   .compare-zoom-reset{font-size:12px; padding:4px 10px; color:var(--muted);}
   .compare-zoom-label{font-size:12.5px; color:var(--muted); font-family:'Nunito',sans-serif; min-width:38px; text-align:center;}
-  .compare-pan-viewport{overflow:hidden; border-radius:8px; border:1px solid var(--line); background:var(--panel2); cursor:grab; user-select:none; padding:6px 0;}
+  /* touch-action:none hands all touch gestures on this element to our own JS (pan +
+     pinch-zoom) instead of the browser's default scroll/zoom — pairs with the
+     preventDefault() calls in the touchmove handler so the page itself stays still. */
+  .compare-pan-viewport{overflow:hidden; border-radius:8px; border:1px solid var(--line); background:var(--panel2); cursor:grab; user-select:none; padding:6px 0; touch-action:none;}
   .compare-pan-inner{will-change:transform; display:inline-block;}
 
   /* ── Light theme overrides ── */
@@ -692,8 +697,13 @@
   }
 
   /* ══════════════ Responsive: Tablet & Mobile ══════════════ */
-  /* Tablet (~641px–1024px, e.g. iPad): bigger tap targets & type, desktop-like layout kept */
-  @media (max-width:1024px){
+  /* Tablet (~641px–1024px, e.g. iPad): bigger tap targets & type, desktop-like layout kept.
+     Also matches any touch-primary device regardless of width (pointer:coarse) — otherwise
+     a touchscreen tablet in landscape (e.g. iPad Pro 12.9" at 1366px) would cross back over
+     1024px and lose touch-target sizing entirely, getting small mouse-click-sized buttons
+     on a touchscreen. Width-only devices (e.g. a narrow desktop browser window) still match
+     via the max-width condition same as before. */
+  @media (max-width:1024px), (pointer:coarse){
     .ctrl-btn{width:42px; height:42px; font-size:20px;}
     .go-inline-counter .ctrl-btn{width:38px; height:38px; font-size:18px;}
     .tab-btn{padding:12px 14px 12px 6px; font-size:14px;}
@@ -741,9 +751,12 @@
     .counters{flex-direction:column;}
     .counter-card, .counter-card.rare{flex:1 1 auto; width:100%;}
     .total-rare-row{flex-direction:column; flex:1 1 auto;}
-    .ctrl-btn{width:46px; height:46px; font-size:22px;}
+    /* Same 390→360px fluid scaling as the tab row above. */
+    .ctrl-btn{width:clamp(40px, calc(20vw - 32px), 46px); height:clamp(40px, calc(20vw - 32px), 46px); font-size:clamp(19px, calc(10vw - 17px), 22px);}
     .ctrl-btn:active{transform:scale(0.90); background:var(--line);}
-    .go-inline-counter .ctrl-btn{width:42px; height:42px; font-size:20px;}
+    /* Same 390→360px fluid scaling as the main .ctrl-btn above, scaled to this button's
+       own smaller size (this is the +/- inside the Grind Log's "Editing Counter" panel). */
+    .go-inline-counter .ctrl-btn{width:clamp(36px, calc(20vw - 36px), 42px); height:clamp(36px, calc(20vw - 36px), 42px); font-size:clamp(17px, calc(10vw - 19px), 20px);}
     .count-display{font-size:34px;}
     .counter-controls{gap:10px;}
     .kb-footer{display:none;}
@@ -753,8 +766,11 @@
     /* Information + Settings/About need to fit on one shared row together — trimmed
        further than the first pass so both groups plus their divider actually fit
        instead of Settings/About wrapping to its own third row. */
-    .tab-btn{padding:7px 5px; font-size:11.5px;}
-    .tab-group-label{font-size:8.5px; padding:0 2px 3px 2px;}
+    /* Fluid from 390px (iPhone 12 Pro — the width these were screenshotted/tuned on) down
+       to a 360px floor (common small-phone width, e.g. iPhone SE/Android). Unchanged at
+       390px and up; only eases down below that instead of reusing untested tight values. */
+    .tab-btn{padding:7px clamp(4px, calc(3.333vw - 8px), 5px); font-size:clamp(10.5px, calc(3.333vw - 1.5px), 11.5px);}
+    .tab-group-label{font-size:clamp(7.5px, calc(3.333vw - 4.5px), 8.5px); padding:0 2px 3px 2px;}
     .tab-group-btns{gap:2px;}
     .tab-group-divider{margin:2px 5px 0 5px;}
     .lbl-desktop{display:none;}
@@ -779,9 +795,12 @@
     .stats-grid .stat-box[style*="grid-column:5; grid-row:2"]{order:10;} /* Total max-levels */
     .stats-grid .stat-box[style*="grid-column:3; grid-row:2"]{order:11;} /* Total rares */
     .stats-grid .stat-box[style*="grid-column:6; grid-row:2"]{order:12;} /* Total kills */
-    .stat-box{padding:14px 12px; min-height:70px;}
-    .stat-num{font-size:22px;}
-    .stat-lbl{font-size:12px;}
+    /* Same 390→360px fluid scaling as above — flagged as tight since with a 2-column grid
+       on a narrower screen, each box's own text space shrinks by more than the screen
+       width does. */
+    .stat-box{padding:clamp(10px, calc(13.333vw - 38px), 14px) clamp(8px, calc(13.333vw - 40px), 12px); min-height:70px;}
+    .stat-num{font-size:clamp(18px, calc(13.333vw - 30px), 22px);}
+    .stat-lbl{font-size:clamp(10.5px, calc(5vw - 7.5px), 12px);}
     .go-log-body{flex-direction:column;}
     .go-log-left, .go-log-middle, .go-log-right{flex:1 1 auto; width:100%;}
     .go-log-right{flex-direction:row; flex-wrap:wrap;}
@@ -799,4 +818,20 @@
     .theme-toggle-btn{padding:8px 14px; font-size:13px;}
     .del-two-step-label input[type="checkbox"]{width:18px; height:18px;}
     .modal{padding:12px;}
+  }
+
+  /* Large monitor (>=1200px browser window width — a wide/generously-sized window,
+     not tied to monitor resolution, since a window is often not fullscreen). Widens the
+     centered column and fluidly scales up the highest-visibility elements (title,
+     overview stats, grind log cards) so the page reads as less small/underused on wide
+     screens. Values level off at 1600px so it doesn't keep growing indefinitely on
+     ultrawide displays. Nothing below 1200px changes at all. */
+  @media (min-width:1200px){
+    .wrap{max-width:clamp(920px, calc(65vw + 140px), 1180px);}
+    .masthead{--mh-title-size:clamp(34px, calc(1.5vw + 16px), 40px);}
+    .subtitle{font-size:clamp(13.5px, calc(0.375vw + 9px), 15px);}
+    .stat-box{padding:clamp(12px, 1vw, 16px) clamp(14px, calc(1vw + 2px), 18px);}
+    .stat-num{font-size:clamp(20px, calc(1vw + 8px), 24px);}
+    .stat-lbl{font-size:clamp(11px, calc(0.375vw + 6.5px), 12.5px);}
+    .go-log-card{padding:clamp(14px, calc(1vw + 2px), 18px) clamp(16px, calc(1vw + 4px), 20px);}
   }

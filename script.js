@@ -2892,19 +2892,26 @@
     if(!area) return;
     const completed = completedGrindsList().filter(g => g.species !== NON_GO);
 
-    // Build species → maps mapping
+    if(completed.length === 0){
+      area.innerHTML = `<div class="empty-note">No completed grinds yet. Log at least one Great One to use this tool.</div>`;
+      return;
+    }
+
+    // Platform is required and scopes everything below it — species/map choices are
+    // built only from grinds logged on the selected platform.
+    const platformList = [...new Set(completed.map(g => g.platform).filter(Boolean))].sort();
+    const prevPlatform = area.dataset.selPlatform || '';
+    const selPlatform = platformList.includes(prevPlatform) ? prevPlatform : platformList[0];
+    const platformCompleted = completed.filter(g => g.platform === selPlatform);
+
+    // Build species → maps mapping (scoped to the selected platform)
     const speciesMaps = {};
-    completed.forEach(g => {
+    platformCompleted.forEach(g => {
       const sp = grindSpeciesLabel(g);
       if(!speciesMaps[sp]) speciesMaps[sp] = new Set();
       speciesMaps[sp].add(g.map || '—');
     });
     const speciesList = Object.keys(speciesMaps).sort();
-
-    if(speciesList.length === 0){
-      area.innerHTML = `<div class="empty-note">No completed grinds yet. Log at least one Great One to use this tool.</div>`;
-      return;
-    }
 
     // Preserve selections across re-renders
     const prevSpecies = area.dataset.selSpecies || '';
@@ -2913,12 +2920,17 @@
     const prevMaps = (area.dataset.selMaps || '').split('|').filter(Boolean);
     const selMaps = prevMaps.filter(m => availMaps.includes(m));
 
+    // Platform selector
+    const platformOpts = platformList.map(p =>
+      `<option value="${escapeAttr(p)}" ${p === selPlatform ? 'selected' : ''}>${escapeHtml(p)}</option>`
+    ).join('');
+
     // Species selector
     const speciesOpts = speciesList.map(s =>
       `<option value="${escapeAttr(s)}" ${s === selSpecies ? 'selected' : ''}>${escapeHtml(s)}</option>`
     ).join('');
 
-    // Map checkboxes (only maps with ≥1 completed grind for selected species)
+    // Map checkboxes (only maps with ≥1 completed grind for selected species on this platform)
     const mapChecks = availMaps.map(m => {
       const checked = selMaps.includes(m) ? 'checked' : '';
       return `<label class="compare-map-label"><input type="checkbox" class="compare-map-cb" value="${escapeAttr(m)}" ${checked}> ${escapeHtml(m)}</label>`;
@@ -2926,6 +2938,10 @@
 
     area.innerHTML = `
       <div class="compare-controls">
+        <div class="compare-row">
+          <label class="compare-label">Platform</label>
+          <select id="comparePlatformSel" class="compare-select">${platformOpts}</select>
+        </div>
         <div class="compare-row">
           <label class="compare-label">Species</label>
           <select id="compareSpeciesSel" class="compare-select">${speciesOpts}</select>
@@ -2954,7 +2970,7 @@
       ];
 
       const mapData = selMaps.map(map => {
-        const gs = completed.filter(g => grindSpeciesLabel(g) === selSpecies && (g.map||'—') === map);
+        const gs = platformCompleted.filter(g => grindSpeciesLabel(g) === selSpecies && (g.map||'—') === map);
         const n = gs.length || 1;
         const sumD = gs.reduce((s,g)=>s+totalDiamond(g),0);
         const sumL = gs.reduce((s,g)=>s+totalMaxLevel(g),0);
@@ -3058,6 +3074,19 @@
         label.textContent = Math.round(scale * 100) + '%';
       }
 
+      // Center the chart in the viewport instead of anchoring it to the top-left corner
+      // (previously panX/panY defaulted to 0, which left the chart pinned top-left with
+      // empty space on the right/bottom any time it was smaller than the viewport).
+      function centerContent(){
+        const scaledW = totalW * scale;
+        const scaledH = chartH * scale;
+        const vpW = viewport.clientWidth || containerW;
+        const vpH = viewport.clientHeight || viewportH;
+        panX = (vpW - scaledW) / 2;
+        panY = (vpH - scaledH) / 2;
+      }
+
+      centerContent();
       applyTransform();
 
       document.getElementById('czoomIn').addEventListener('click', () => {
@@ -3070,7 +3099,7 @@
       });
       document.getElementById('czoomFit').addEventListener('click', () => {
         scale = fitScale;
-        panX = 0; panY = 0;
+        centerContent();
         applyTransform();
       });
 
@@ -3094,22 +3123,68 @@
         viewport.style.cursor = 'grab';
       });
 
-      // Touch pan (X and Y)
+      // Touch pan (one finger) + pinch-to-zoom (two fingers). touchmove is non-passive so
+      // we can preventDefault() while a touch is active on the viewport — otherwise the
+      // whole page scrolls along underneath the chart while dragging it, instead of just
+      // the chart itself moving.
       let touchStartX = 0, touchStartY = 0, touchPanStartX = 0, touchPanStartY = 0;
+      let pinchStartDist = 0, pinchStartScale = 1, pinchStartPanX = 0, pinchStartPanY = 0, pinchMidX = 0, pinchMidY = 0;
+
+      function touchDist(touches){
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.hypot(dx, dy);
+      }
+
       viewport.addEventListener('touchstart', e => {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        touchPanStartX = panX;
-        touchPanStartY = panY;
+        if(e.touches.length === 2){
+          pinchStartDist = touchDist(e.touches);
+          pinchStartScale = scale;
+          pinchStartPanX = panX; pinchStartPanY = panY;
+          const rect = viewport.getBoundingClientRect();
+          pinchMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+          pinchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+        } else if(e.touches.length === 1){
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          touchPanStartX = panX;
+          touchPanStartY = panY;
+        }
       }, { passive: true });
+
       viewport.addEventListener('touchmove', e => {
-        panX = touchPanStartX + (e.touches[0].clientX - touchStartX);
-        panY = touchPanStartY + (e.touches[0].clientY - touchStartY);
-        applyTransform();
-      }, { passive: true });
+        if(e.touches.length === 2){
+          e.preventDefault();
+          const dist = touchDist(e.touches);
+          const ratio = dist / (pinchStartDist || 1);
+          const newScale = Math.max(0.1, Math.min(3, pinchStartScale * ratio));
+          // Keep the point under the fingers stationary as the scale changes, so the
+          // pinch feels anchored to where your fingers are instead of the viewport center.
+          const contentX = (pinchMidX - pinchStartPanX) / pinchStartScale;
+          const contentY = (pinchMidY - pinchStartPanY) / pinchStartScale;
+          scale = newScale;
+          panX = pinchMidX - contentX * newScale;
+          panY = pinchMidY - contentY * newScale;
+          applyTransform();
+        } else if(e.touches.length === 1){
+          e.preventDefault();
+          panX = touchPanStartX + (e.touches[0].clientX - touchStartX);
+          panY = touchPanStartY + (e.touches[0].clientY - touchStartY);
+          applyTransform();
+        }
+      }, { passive: false });
     }
 
     drawChart();
+
+    // Platform change resets species + map selections underneath it, since both are
+    // scoped to whichever platform is selected.
+    document.getElementById('comparePlatformSel').addEventListener('change', function(){
+      area.dataset.selPlatform = this.value;
+      area.dataset.selSpecies = '';
+      area.dataset.selMaps = '';
+      renderGrindComparison();
+    });
 
     // Species change
     document.getElementById('compareSpeciesSel').addEventListener('change', function(){
