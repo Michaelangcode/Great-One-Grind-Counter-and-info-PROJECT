@@ -80,6 +80,7 @@
   let buzzDefaultOn = false; // default state for new grinds' hotkey buzz feedback
   let rareDefaultOn = false; // default state for new grinds' rare fur tracking
   let hotkeySound = 'click'; // which synthesized sound plays on hotkey use: ding | click | thock | pop | blip
+  let themeLight = false; // persisted light/dark theme choice
   let sessionGoal = null;       // { goal: number, killsAtStart: number } — resets on grind switch/end/GO log
   let sessionGoalDone = false;  // true when goal reached, show !
 
@@ -93,10 +94,11 @@
       // Anyone who already has a saved preference (including an explicit off) keeps it.
       rareDefaultOn = s.rareDefaultOn === undefined ? true : s.rareDefaultOn === true;
       hotkeySound = VALID_HOTKEY_SOUNDS.includes(s.hotkeySound) ? s.hotkeySound : 'click';
-    }catch(e){ twoStepDelete = false; buzzDefaultOn = false; rareDefaultOn = true; hotkeySound = 'click'; }
+      themeLight = s.themeLight === true;
+    }catch(e){ twoStepDelete = false; buzzDefaultOn = false; rareDefaultOn = true; hotkeySound = 'click'; themeLight = false; }
   }
   function saveSettings(){
-    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify({ twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound })); }catch(e){}
+    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify({ twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound, themeLight })); }catch(e){}
   }
   function loadCustomDefaults(){
     try{
@@ -172,6 +174,7 @@
   const weightIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M5 7h14l2 12H3L5 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>`;
   const totalIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>`;
   const rareIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>`;
+  const trollIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8L11 2L9 7L12 10L9 14L11 19Z"/><path d="M13 4L19 10L13 21L11 16L14 12L11 9Z"/><path d="M8 19l3 1-1 3-3-1z"/></svg>`;
 
   function totalDiamond(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0); }
   // diamondLvl3 = top-tier diamond (Lv3/Lv5/Lv9) — counts toward max-level
@@ -548,17 +551,21 @@
     // Wire Save Changes — shows a before/after diff. Either choice keeps the panel open,
     // just applying either the saved or the reverted counts.
     panel.querySelector('.go-inline-counter-save').addEventListener('click', () => {
-      showCounterEditConfirmModal(snapshot, g, () => {
-        saveCounterEditInPlace(g, grindId, panel, snapshot);
-      }, () => {
-        revertCounterEditInPlace(g, grindId, panel, snapshot);
+      showCounterEditConfirmModal(snapshot, g, {
+        onSave: () => saveCounterEditInPlace(g, grindId, panel, snapshot),
+        onRevert: () => revertCounterEditInPlace(g, grindId, panel, snapshot),
+        message: 'Save these changes to the logged grind? This can’t be automatically reverted once saved.',
+        dismissLabel: 'Cancel'
       });
     });
-    // Wire Revert to Original — simple standalone confirm; canceling just keeps editing,
-    // confirming reverts in place without closing the panel.
+    // Wire Revert to Original — shares the same diff-view modal as Save Changes, so you
+    // can see exactly what would be undone before confirming.
     panel.querySelector('.go-inline-counter-revert').addEventListener('click', () => {
-      askConfirm('This will revert this grind’s counters back to their last saved baseline. It only undoes edits you haven’t saved yet — it won’t work on changes you’ve already confirmed with Save Changes. Continue?', () => {
-        revertCounterEditInPlace(g, grindId, panel, snapshot);
+      showCounterEditConfirmModal(snapshot, g, {
+        onRevert: () => revertCounterEditInPlace(g, grindId, panel, snapshot),
+        message: 'Revert this grind’s counters back to their last saved baseline? It only undoes edits you haven’t saved yet — it won’t work on changes you’ve already confirmed with Save Changes.',
+        dismissLabel: 'Cancel',
+        showSave: false
       });
     });
 
@@ -608,12 +615,12 @@
       gg => gg.rareCount||0, (gg,val) => { gg.rareCount = val; }, inlineAfterApply);
 
     // Wire rare toggle
-    const rareToggleEl = panel.querySelector('#rareToggle');
+    const rareToggleEl = panel.querySelector('#ic-'+grindId+'-rareToggle');
     if(rareToggleEl){
       rareToggleEl.addEventListener('click', () => {
         g.rareTracking = !g.rareTracking;
         markDirty(); scheduleSave();
-        const rareCard = panel.querySelector('#rareCard');
+        const rareCard = panel.querySelector('#ic-'+grindId+'-rareCard');
         const rareMinusBtn = panel.querySelector('[data-target="rareCount"].minus');
         const rarePlusBtn = panel.querySelector('[data-target="rareCount"].plus');
         if(rareCard){ rareCard.classList.toggle('rare-off', !g.rareTracking); }
@@ -636,14 +643,14 @@
   }
 
   // Shared by the Save Changes button and by re-pressing Edit Counter to close the panel.
-  // Shows the before/after diff; Confirm keeps the (already live-applied) edits, Cancel
-  // reverts back to the pre-edit snapshot instead. Either way the panel closes.
+  // Shows the before/after diff; Save keeps the (already live-applied) edits, Revert to
+  // Original reverts back to the pre-edit snapshot instead. Either way the panel closes.
   function promptCounterSaveOrRevert(g, grindId, panel, snapshot){
-    showCounterEditConfirmModal(snapshot, g, () => {
-      finishCounterEdit(grindId, panel);
-    }, () => {
-      revertGrindCounters(g, snapshot);
-      finishCounterEdit(grindId, panel);
+    showCounterEditConfirmModal(snapshot, g, {
+      onSave: () => finishCounterEdit(grindId, panel),
+      onRevert: () => { revertGrindCounters(g, snapshot); finishCounterEdit(grindId, panel); },
+      message: 'Save these changes to the logged grind? This can’t be automatically reverted once saved.',
+      dismissLabel: 'Cancel'
     });
   }
 
@@ -671,9 +678,9 @@
     if(g.id === activeGrindId) renderLiveStat();
     const statRow = panel.closest('.go-log-card')?.querySelector('.go-log-stats-row');
     if(statRow) updateGoLogStatRow(g, statRow);
-    const rareToggleEl = panel.querySelector('#rareToggle');
+    const rareToggleEl = panel.querySelector('#ic-'+grindId+'-rareToggle');
     if(rareToggleEl){
-      const rareCard = panel.querySelector('#rareCard');
+      const rareCard = panel.querySelector('#ic-'+grindId+'-rareCard');
       const rareMinusBtn = panel.querySelector('[data-target="rareCount"].minus');
       const rarePlusBtn = panel.querySelector('[data-target="rareCount"].plus');
       if(rareCard) rareCard.classList.toggle('rare-off', !g.rareTracking);
@@ -719,40 +726,17 @@
       || g.rareTracking !== snapshot.rareTracking;
   }
 
-  // Blocks a tab switch while there are unsaved counter edits — offers Save Changes,
-  // Revert to Original, or Okay (just returns to editing without touching anything).
+  // Blocks a tab switch while there are unsaved counter edits — reuses the same
+  // diff-showing Save/Revert modal as the Save Changes button (see
+  // showCounterEditConfirmModal) instead of a separate near-duplicate window.
   function showFinishEditingFirstModal(){
     if(!openCounterEdit) return;
     const { grindId, g, panel, snapshot } = openCounterEdit;
-    const modal = document.getElementById('confirmModal');
-    const textEl = document.getElementById('modalText');
-    const actionsBox = modal.querySelector('.modal-actions');
-
-    textEl.textContent = 'Finish editing this grind’s counter before switching tabs.';
-
-    const diffTable = document.getElementById('counterEditDiffTable');
-    if(diffTable) diffTable.remove();
-
-    actionsBox.innerHTML = `
-      <button id="finishEditSaveBtn" class="confirm-go">💾 Save Changes</button>
-      <button id="finishEditRevertBtn" class="go-inline-counter-revert">↺ Revert to Original</button>
-      <button id="finishEditOkayBtn">Continue</button>
-    `;
-    modal.classList.remove('hidden');
-
-    document.getElementById('finishEditSaveBtn').addEventListener('click', () => {
-      modal.classList.add('hidden');
-      restoreConfirmModal();
-      saveCounterEditInPlace(g, grindId, panel, snapshot);
-    });
-    document.getElementById('finishEditRevertBtn').addEventListener('click', () => {
-      modal.classList.add('hidden');
-      restoreConfirmModal();
-      revertCounterEditInPlace(g, grindId, panel, snapshot);
-    });
-    document.getElementById('finishEditOkayBtn').addEventListener('click', () => {
-      modal.classList.add('hidden');
-      restoreConfirmModal();
+    showCounterEditConfirmModal(snapshot, g, {
+      onSave: () => saveCounterEditInPlace(g, grindId, panel, snapshot),
+      onRevert: () => revertCounterEditInPlace(g, grindId, panel, snapshot),
+      message: 'Finish editing this grind’s counter before switching tabs. Review your changes below.',
+      dismissLabel: 'Keep Editing'
     });
   }
 
@@ -785,16 +769,17 @@
     });
   }
 
-  // Diff-style confirmation for saving counter edits on a logged grind — lists each
-  // counter's prior vs. new count. Confirm = "Save Changes"; Cancel reverts back to
-  // the pre-edit snapshot (labeled plain "Cancel" since it's this modal's only way out).
-  function showCounterEditConfirmModal(snapshot, g, onConfirm, onCancel){
+  // Shared diff-style modal for reviewing counter edits on a logged grind — lists each
+  // counter's prior vs. new count, with three outcomes: Save Changes, Revert to Original,
+  // or dismiss (just go back to editing, no change either way). Used both when pressing
+  // "Save Changes" on the inline editor and when trying to switch tabs with unsaved
+  // edits still pending, so there's one window instead of two near-duplicate ones.
+  function showCounterEditConfirmModal(snapshot, g, { onSave, onRevert, onDismiss, message, dismissLabel, showSave = true } = {}){
     const modal = document.getElementById('confirmModal');
     const textEl = document.getElementById('modalText');
-    const confirmBtn = document.getElementById('modalConfirm');
-    const cancelBtn = document.getElementById('modalCancel');
+    const actionsBox = modal.querySelector('.modal-actions');
 
-    textEl.textContent = 'Save these changes to the logged grind? This can’t be automatically reverted once saved.';
+    textEl.textContent = message || 'Review your changes to this logged grind’s counter:';
 
     let diffTable = document.getElementById('counterEditDiffTable');
     if(!diffTable){
@@ -814,27 +799,31 @@
       `<div class="wizard-review-row"><span class="wizard-review-label">${label}</span><span class="wizard-review-val">${before} &rarr; ${after}</span></div>`
     ).join('');
 
+    actionsBox.innerHTML = `
+      ${showSave ? '<button id="counterEditSaveBtn" class="confirm-go">💾 Save Changes</button>' : ''}
+      <button id="counterEditRevertBtn" class="go-inline-counter-revert">↺ Revert to Original</button>
+      <button id="counterEditDismissBtn">${dismissLabel || 'Cancel'}</button>
+    `;
     modal.classList.remove('hidden');
 
-    const newConfirm = confirmBtn.cloneNode(true);
-    confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
-    newConfirm.className = 'confirm-go';
-    newConfirm.textContent = 'Save Changes';
-    newConfirm.addEventListener('click', () => {
+    const saveBtn = document.getElementById('counterEditSaveBtn');
+    if(saveBtn) saveBtn.addEventListener('click', () => {
       modal.classList.add('hidden');
       if(diffTable) diffTable.remove();
       restoreConfirmModal();
-      if(onConfirm) onConfirm();
+      if(onSave) onSave();
     });
-
-    const newCancel = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
-    newCancel.textContent = 'Cancel';
-    newCancel.addEventListener('click', () => {
+    document.getElementById('counterEditRevertBtn').addEventListener('click', () => {
       modal.classList.add('hidden');
       if(diffTable) diffTable.remove();
       restoreConfirmModal();
-      if(onCancel) onCancel();
+      if(onRevert) onRevert();
+    });
+    document.getElementById('counterEditDismissBtn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      if(diffTable) diffTable.remove();
+      restoreConfirmModal();
+      if(onDismiss) onDismiss();
     });
   }
 
@@ -854,7 +843,7 @@
           ${keybindFooter('diamondLvl3', 'Diamond')}
         </div>
         <div class="counter-card antler">
-          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${trollIcon}</span><span class="card-label">Trolls</span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract">&minus;</button>
@@ -876,15 +865,15 @@
             <div class="breakdown" id="ic-${grindId}-basicTotalBreakdown"></div>
             ${keybindFooter('other', 'Total Kills')}
           </div>
-          <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" data-hint="More advanced settings in the &quot;Settings&quot; section!" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
+          <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="ic-${grindId}-rareCard">
+            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="ic-${grindId}-rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" data-hint="More advanced settings in the &quot;Settings&quot; section!" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
             <div class="card-sub">this grind</div>
             <div class="counter-controls">
               <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
               <div class="count-display" id="ic-${grindId}-rareCount">0</div>
               <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
             </div>
-            <div class="rare-note" data-tip="Rare fur spawn rates are fixed percentages and cannot be manipulated.">Does not affect any other counter, including Total Kills.</div>
+            <div class="rare-note">Does not affect any other counter, including Total Kills.</div>
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
@@ -1912,7 +1901,7 @@
         <section id="installGuide">
           <h2>Installing as a Browser App</h2>
           <p class="info-text">This tool can be installed straight from your browser, so it opens like its own app instead of a browser tab &mdash; no app store needed. Steps vary by browser and device:</p>
-          <p class="info-note">Browsers change their menus and options over time, so these instructions may not always be perfectly accurate or up to date. The browser-app experience also may not be available or fully optimized on every device or browser &mdash; sorry if yours isn't one of them!</p>
+          <p class="info-note">Browsers change their menus and options over time, so these instructions may not always be perfectly accurate or up to date. The browser-app experience also may not be available or fully optimized on every device or browser &mdash; sorry if yours isn't one of them! The tool itself is currently optimized for phones, laptops, and PC monitors.</p>
 
           <h3 class="how-it-works-subhead">Chrome / Edge (Windows, Mac, Linux)</h3>
           <ol class="how-it-works-list">
@@ -2025,7 +2014,7 @@
         <section>
           <h2>Display</h2>
           <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
-            <button id="themeToggleBtn" class="theme-toggle-btn"><span class="theme-toggle-icon">&#9728;</span> Light mode</button>
+            <button id="themeToggleBtn" class="theme-toggle-btn"><span class="theme-toggle-icon">${themeLight ? '&#127769;' : '&#9728;'}</span> ${themeLight ? 'Dark mode' : 'Light mode'}</button>
             <span style="font-size:12px; color:var(--muted);">Switch between dark and light color themes.</span>
           </div>
         </section>
@@ -2191,9 +2180,11 @@
     (function(){
       const app = document.querySelector('.app');
       const btn = document.getElementById('themeToggleBtn');
-      let light = false;
+      let light = themeLight;
       btn.addEventListener('click', () => {
         light = !light;
+        themeLight = light;
+        saveSettings();
         app.classList.toggle('theme-light', light);
         const icon = btn.querySelector('.theme-toggle-icon');
         icon.innerHTML = light ? '&#127769;' : '&#9728;';
@@ -2553,7 +2544,7 @@
           ${keybindFooter('diamondLvl3', 'Diamond')}
         </div>
         <div class="counter-card antler">
-          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${antlerIcon}</span><span class="card-label">Trolls</span></div>
+          <div class="card-top"><span class="card-icon" style="color:var(--antler)">${trollIcon}</span><span class="card-label">Trolls</span></div>
           <div class="card-sub">this grind</div>
           <div class="counter-controls">
             <button class="ctrl-btn minus" data-target="maxLevelOnly" aria-label="Subtract">&minus;</button>
@@ -2583,7 +2574,7 @@
               <div class="count-display" id="rareCount">0</div>
               <button class="ctrl-btn plus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Add rare">+</button>
             </div>
-            <div class="rare-note" data-tip="Rare fur spawn rates are fixed percentages and cannot be manipulated.">Does not affect any other counter, including Total Kills.</div>
+            <div class="rare-note">Does not affect any other counter, including Total Kills.</div>
             ${keybindFooter('rareCount', 'Rare Fur')}
           </div>
         </div>
@@ -2887,6 +2878,30 @@
     renderGrindComparison();
   }
 
+  // Shared drag state + one-time window listeners for the Map Comparison chart's
+  // click-drag panning. Previously drawChart() called window.addEventListener('mousemove'/
+  // 'mouseup', ...) directly, which re-added a fresh pair of listeners on every redraw
+  // (tab switch, platform/species/map change, new logged grind, etc.) with no cleanup —
+  // they piled up on window for the life of the tab. Now the window listeners are bound
+  // exactly once and just read whichever drag is currently active via activeCompareDrag.
+  let activeCompareDrag = null;
+  let compareWindowDragListenersBound = false;
+  function ensureCompareWindowDragListeners(){
+    if(compareWindowDragListenersBound) return;
+    compareWindowDragListenersBound = true;
+    window.addEventListener('mousemove', e => {
+      if(!activeCompareDrag || !activeCompareDrag.dragging) return;
+      const d = activeCompareDrag;
+      d.setPan(d.panStartX + (e.clientX - d.dragStartX), d.panStartY + (e.clientY - d.dragStartY));
+      d.applyTransform();
+    });
+    window.addEventListener('mouseup', () => {
+      if(!activeCompareDrag) return;
+      activeCompareDrag.dragging = false;
+      if(activeCompareDrag.viewport) activeCompareDrag.viewport.style.cursor = 'grab';
+    });
+  }
+
   function renderGrindComparison(){
     const area = document.getElementById('grindCompareArea');
     if(!area) return;
@@ -2995,6 +3010,13 @@
       const labelH = 44;
       const chartH = 260 + topPad;
       const totalW = Math.max(480, numMetrics * (groupW + groupGap) + 60);
+      // Anchor horizontal centering on the "Avg kills / Max-Level" group specifically,
+      // not the raw SVG bounding box — totalW has a minimum-width floor and a trailing
+      // margin that can leave the actual bars sitting left of the box's own geometric
+      // center, and Max-Level is the metric that should be front-and-center regardless.
+      const maxLevelIdx = Math.max(0, metrics.findIndex(m => m.key === 'maxlevel'));
+      const maxLevelGroupX = 20 + maxLevelIdx * (groupW + groupGap);
+      const maxLevelCenterX = maxLevelGroupX + groupW / 2;
       const allVals = mapData.flatMap(d => metrics.map(m => d[m.key]));
       const maxVal = Math.max(1, ...allVals);
 
@@ -3053,18 +3075,26 @@
       const label = document.getElementById('czoomLabel');
 
       // Fit scale: shrink so entire chart fits in both dimensions. Uses the pan
-      // viewport's real measured width, not a guessed/capped estimate — previously this
-      // was capped at a guessed 680px even when the real column was wider (e.g. on large
-      // monitors), so the chart rendered smaller than necessary and "Fit"/centering were
-      // computed against two different widths.
-      const containerW = viewport.clientWidth || Math.min(680, window.innerWidth - 48);
-      const fitScaleX = Math.min(1, containerW / totalW);
-      const fitScaleY = Math.min(1, (viewportH - 12) / chartH);
-      const fitScale = Math.min(fitScaleX, fitScaleY);
+      // viewport's real measured width, not a guessed/capped estimate.
+      function computeContainerW(){
+        return viewport.clientWidth || Math.min(680, window.innerWidth - 48);
+      }
+      let containerW = computeContainerW();
+      function computeFitScale(){
+        const fitScaleX = Math.min(1, containerW / totalW);
+        const fitScaleY = Math.min(1, (viewportH - 12) / chartH);
+        return Math.min(fitScaleX, fitScaleY);
+      }
+      let fitScale = computeFitScale();
 
       let scale = fitScale;
       let panX = 0, panY = 0;
 
+      // transform-origin is the box's own center (see below), and .compare-pan-viewport
+      // is a flex container that centers this box — so scale() alone (pan=0) already keeps
+      // the chart centered at any zoom level, without needing to measure the viewport at
+      // all. panX/panY only represent how far the user has dragged/pinched away from that
+      // CSS-centered resting position.
       function applyTransform(){
         const scaledW = totalW * scale;
         const scaledH = chartH * scale;
@@ -3073,27 +3103,51 @@
         // Allow panning up to one full viewport past each edge so edges can be centered
         const overX = Math.max(0, scaledW - vpW);
         const overY = Math.max(0, scaledH - vpH);
-        panX = Math.max(-(overX + vpW * 0.5), Math.min(vpW * 0.5, panX));
-        panY = Math.max(-(overY + vpH * 0.5), Math.min(vpH * 0.5, panY));
+        const maxPanX = overX / 2 + vpW * 0.5;
+        const maxPanY = overY / 2 + vpH * 0.5;
+        panX = Math.max(-maxPanX, Math.min(maxPanX, panX));
+        panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
         inner.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-        inner.style.transformOrigin = 'top left';
+        inner.style.transformOrigin = 'center center';
         label.textContent = Math.round(scale * 100) + '%';
       }
 
-      // Center the chart in the viewport instead of anchoring it to the top-left corner
-      // (previously panX/panY defaulted to 0, which left the chart pinned top-left with
-      // empty space on the right/bottom any time it was smaller than the viewport).
+      // Resting/centered state doesn't need the viewport's size at all — the flex
+      // container + center transform-origin above already put the box's own geometric
+      // center at the viewport's center for pan=(0,0). We then offset from that by
+      // exactly enough to put maxLevelCenterX (not the box's raw center) at the
+      // viewport's center instead, so "Avg kills / Max-Level" is what's front and center.
       function centerContent(){
-        const scaledW = totalW * scale;
-        const scaledH = chartH * scale;
-        const vpW = viewport.clientWidth || containerW;
-        const vpH = viewport.clientHeight || viewportH;
-        panX = (vpW - scaledW) / 2;
-        panY = (vpH - scaledH) / 2;
+        panX = -scale * (maxLevelCenterX - totalW / 2);
+        panY = 0;
       }
 
       centerContent();
       applyTransform();
+
+      // Guaranteed corrective re-measure. If this chart happened to draw while its tab
+      // (or an ancestor) was still hidden or mid-transition, viewport.clientWidth above
+      // may have read 0 or a stale value, which fed a wrong fitScale/center into the very
+      // first render — a fixed one-frame delay isn't reliable here since different
+      // browsers/devices can take more than one frame to finish that layout pass. A
+      // ResizeObserver instead fires the moment the viewport's real size is actually
+      // available, however long that takes, so this corrective pass can't be missed.
+      if(typeof ResizeObserver !== 'undefined'){
+        let corrected = false;
+        const ro = new ResizeObserver(() => {
+          if(corrected) return;
+          const w = viewport.clientWidth;
+          if(!w) return;
+          corrected = true;
+          containerW = w;
+          fitScale = computeFitScale();
+          scale = fitScale;
+          centerContent();
+          applyTransform();
+          ro.disconnect();
+        });
+        ro.observe(viewport);
+      }
 
       document.getElementById('czoomIn').addEventListener('click', () => {
         scale = Math.min(3, scale + 0.15);
@@ -3109,24 +3163,20 @@
         applyTransform();
       });
 
-      // Click-drag pan (X and Y)
-      let dragging = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
+      // Click-drag pan (X and Y). Window-level mousemove/mouseup are bound once (see
+      // ensureCompareWindowDragListeners above) instead of re-added on every redraw.
+      ensureCompareWindowDragListeners();
       viewport.addEventListener('mousedown', e => {
-        dragging = true;
-        dragStartX = e.clientX; dragStartY = e.clientY;
-        panStartX = panX; panStartY = panY;
+        activeCompareDrag = {
+          dragging: true,
+          dragStartX: e.clientX, dragStartY: e.clientY,
+          panStartX: panX, panStartY: panY,
+          viewport,
+          setPan(x, y){ panX = x; panY = y; },
+          applyTransform
+        };
         viewport.style.cursor = 'grabbing';
         e.preventDefault();
-      });
-      window.addEventListener('mousemove', e => {
-        if(!dragging) return;
-        panX = panStartX + (e.clientX - dragStartX);
-        panY = panStartY + (e.clientY - dragStartY);
-        applyTransform();
-      });
-      window.addEventListener('mouseup', () => {
-        dragging = false;
-        viewport.style.cursor = 'grab';
       });
 
       // Touch pan (one finger) + pinch-to-zoom (two fingers). touchmove is non-passive so
@@ -3166,11 +3216,17 @@
           const newScale = Math.max(0.1, Math.min(3, pinchStartScale * ratio));
           // Keep the point under the fingers stationary as the scale changes, so the
           // pinch feels anchored to where your fingers are instead of the viewport center.
-          const contentX = (pinchMidX - pinchStartPanX) / pinchStartScale;
-          const contentY = (pinchMidY - pinchStartPanY) / pinchStartScale;
+          // With transform-origin centered on the box, a screen point maps to local content
+          // as screenPos = pan + viewportCenter + scale*(local - contentCenter) — invert
+          // that at pinch-start to find the local point under the fingers, then solve for
+          // the new pan that keeps that same local point under the same screen point.
+          const vpW = viewport.clientWidth || containerW;
+          const vpH = viewport.clientHeight || viewportH;
+          const relX = (pinchMidX - pinchStartPanX - vpW / 2) / pinchStartScale;
+          const relY = (pinchMidY - pinchStartPanY - vpH / 2) / pinchStartScale;
           scale = newScale;
-          panX = pinchMidX - contentX * newScale;
-          panY = pinchMidY - contentY * newScale;
+          panX = pinchMidX - vpW / 2 - relX * newScale;
+          panY = pinchMidY - vpH / 2 - relY * newScale;
           applyTransform();
         } else if(e.touches.length === 1){
           e.preventDefault();
@@ -3394,7 +3450,7 @@
       const dia = totalDiamond(g);
       const tk  = totalKillsOf(g);
       return [
-        autoNameForGrind(g.species, g.map, g.grindNumber, g.unlistedName),
+        g.nickname || g.defaultName || grindSpeciesLabel(g),
         grindSpeciesLabel(g),
         g.map || '',
         g.platform || '',
@@ -4264,6 +4320,11 @@
 
     loadKeybinds();
     loadSettings();
+    // Belt-and-suspenders: the inline snippet in index.html already applies this before
+    // first paint (to avoid a flash of the wrong theme), but re-apply here too so the
+    // state is always correct even if that snippet is ever removed or fails.
+    const appEl = document.querySelector('.app');
+    if(appEl) appEl.classList.toggle('theme-light', themeLight);
     buildShell();
     renderLiveStat();
     setSyncStatus(storageAvailable ? 'saved' : 'unavailable');

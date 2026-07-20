@@ -16,17 +16,24 @@
   }
 
   .theme-light{
-    --bg:#f0f1f3; --bg2:#e8e9ec; --panel:#ffffff; --panel2:#f7f7f8;
+    /* Background sits a touch lighter than before, but stays a shade below --panel/--panel2
+       (pure white) so cards/modals still read as distinct "windows" against the page. */
+    --bg:#f5f6f7; --bg2:#eef0f1; --panel:#ffffff; --panel2:#f7f7f8;
     --line:#dcdde0; --text:#1a1a1a; --muted:#5f6368;
-    --diamond3:#0d7a96; --diamond3-glow:rgba(13,122,150,.12);
-    --diamond2:#5d3db0; --diamond2-glow:rgba(93,61,176,.12);
-    --antler:#7a5208; --antler-glow:rgba(122,82,8,.12);
-    --weight:#346228; --weight-glow:rgba(52,98,40,.12);
+    /* Accent colors derived directly from their dark-mode counterparts: same hue and
+       saturation as the dark-theme value, lightness reduced only as much as needed for
+       ~4.5:1 text contrast on white. So each one is recognizably "the same color" as its
+       dark-mode version, just calibrated for a light background instead of an arbitrary
+       separate pick. */
+    --diamond3:#258199; --diamond3-glow:rgba(37,129,153,.12);
+    --diamond2:#8b5ed7; --diamond2-glow:rgba(139,94,215,.12);
+    --antler:#92722c; --antler-glow:rgba(146,114,44,.12);
+    --weight:#637f4f; --weight-glow:rgba(99,127,79,.12);
     --total:#3d5060;
-    --blaze:#c04010; --blaze-dim:#923010;
-    --danger:#a02820;
-    --export-green:#2e6830; --export-green-dim:#1e4e22;
-    --import-blue:#1e58a0; --import-blue-dim:#144080;
+    --blaze:#cf4b17; --blaze-dim:#a63c12;
+    --danger:#c1483a;
+    --export-green:#448547; --export-green-dim:#346737;
+    --import-blue:#3a7abc; --import-blue-dim:#2f6399;
   }
 
   .theme-toggle-btn{
@@ -93,7 +100,10 @@
   .live-stat .live-label{display:block; font-size:10.5px; letter-spacing:.3px; text-transform:uppercase; color:var(--muted); margin-bottom:4px;}
   .live-stat .live-value{font-size:24px; font-weight:800; color:var(--diamond3); font-variant-numeric:tabular-nums;}
   .live-stat .live-sub{font-size:10px; color:var(--muted); margin-top:3px;}
-  @media (min-width: 760px){
+  /* min-width:641px (not 760px) so this picks up exactly where the ≤640px phone rule
+     leaves off — otherwise 641-759px had neither rule apply, leaving the widget in
+     normal document flow and pushing it above the tabs instead of floating in a corner. */
+  @media (min-width: 641px){
     .live-stat{position:fixed; top:24px; right:24px; width:168px; margin:0; box-shadow:0 6px 20px rgba(0,0,0,.4); z-index:10;}
   }
 
@@ -124,7 +134,8 @@
   .sg-cancel-btn:hover{color:var(--text);}
   /* keybind conflict state */
   .keybind-status.conflict{color:#e05050; background:rgba(224,80,80,.12);}
-  @media (min-width: 760px){
+  /* Matches the live-stat breakpoint change above — see note there. */
+  @media (min-width: 641px){
     .session-goal-widget{position:fixed; top:calc(24px + 100px + 12px); right:24px; width:168px; margin:0; box-shadow:0 6px 20px rgba(0,0,0,.4); z-index:10; padding-bottom:12px;}
   }
 
@@ -264,10 +275,9 @@
 
   .card-top{display:flex; align-items:center; gap:7px; margin-bottom:2px;}
 
-  /* Tooltip — shared by the cascade-logic breakdown text (Diamond/Trolls) and the Rare
-     Fur note, so hovering either shows the same style of hint window. */
-  .breakdown[data-tip]::after,
-  .rare-note[data-tip]::after{
+  /* Tooltip — used by the cascade-logic breakdown text (Diamond/Trolls). Rare Fur's note
+     no longer uses this (hint removed, plain text only). */
+  .breakdown[data-tip]::after{
     content:attr(data-tip);
     display:none;
     position:absolute;
@@ -288,10 +298,8 @@
     box-shadow:0 4px 14px rgba(0,0,0,.9);
     opacity:1;
   }
-  .breakdown[data-tip]::after,
-  .rare-note[data-tip]::after{ right:auto; left:50%; transform:translateX(-50%); bottom:calc(100% + 4px); }
-  .breakdown[data-tip]:hover::after,
-  .rare-note[data-tip]:hover::after{ display:block; }
+  .breakdown[data-tip]::after{ right:auto; left:50%; transform:translateX(-50%); bottom:calc(100% + 4px); }
+  .breakdown[data-tip]:hover::after{ display:block; }
   .breakdown{ cursor:default; position:relative; }
 
   /* Instant, themed hint tooltip for toggle switches (Click/Ding, Rare Fur) — CSS-only so it
@@ -622,7 +630,13 @@
   .counter-card.rare-off .breakdown{opacity:0.22; filter:grayscale(0.5);}
   .counter-card.rare-off .rare-switch{pointer-events:all; opacity:0.75; filter:none;}
   .counter-card.rare-off .ctrl-btn{cursor:default;}
-  .rare-note{font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.45; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:default; position:relative;}
+  /* Two rows now (was forced to one via white-space:nowrap + overflow:hidden — but that
+     overflow:hidden was also clipping the hover-hint tooltip below, since the tooltip is
+     generated as part of this same element — since removed, along with the tooltip
+     entirely). Margin/line-height trimmed as far as reasonably readable so the second row
+     doesn't push the keybind footer (and everything after it) down relative to the other
+     counter cards, whose single-line breakdown text takes up less vertical space. */
+  .rare-note{font-size:10.5px; color:var(--muted); margin-top:0; line-height:1.1; text-align:center;}
 
   /* Keyboard binding UI */
   .kb-footer{display:flex; flex-direction:column; gap:5px; margin-top:10px; padding-top:8px; border-top:1px solid var(--line);}
@@ -667,7 +681,11 @@
   /* touch-action:none hands all touch gestures on this element to our own JS (pan +
      pinch-zoom) instead of the browser's default scroll/zoom — pairs with the
      preventDefault() calls in the touchmove handler so the page itself stays still. */
-  .compare-pan-viewport{overflow:hidden; border-radius:8px; border:1px solid var(--line); background:var(--panel2); cursor:grab; user-select:none; padding:6px 0; touch-action:none;}
+  /* display:flex + centering here is what actually guarantees the chart starts centered —
+     it's handled by the browser's own layout engine instead of a JS pixel calculation that
+     depends on measuring this box's width at the right moment (which was the recurring
+     off-center/left-anchored bug). JS only adds translate()/scale() on top for zoom + pan. */
+  .compare-pan-viewport{overflow:hidden; border-radius:8px; border:1px solid var(--line); background:var(--panel2); cursor:grab; user-select:none; padding:6px 0; touch-action:none; display:flex; align-items:center; justify-content:center;}
   .compare-pan-inner{will-change:transform; display:inline-block;}
 
   /* ── Light theme overrides ── */
@@ -700,8 +718,7 @@
   .theme-light .empty-note{color:var(--muted);}
   .theme-light .modal-overlay{background:rgba(0,0,0,.35);}
   .theme-light .modal-box{background:var(--panel); border-color:var(--line);}
-  .theme-light .breakdown[data-tip]::after,
-  .theme-light .rare-note[data-tip]::after{
+  .theme-light .breakdown[data-tip]::after{
     background:#fff;
     border-color:#ccc;
     color:#111;

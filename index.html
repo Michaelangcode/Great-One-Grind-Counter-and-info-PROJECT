@@ -61,6 +61,16 @@
       </div>
     </div>
     <div class="app">
+  <script>
+    // Applies the saved theme choice immediately, before this div gets any CSS/paint,
+    // so light-mode users don't see a flash of dark mode on every reload.
+    (function(){
+      try {
+        var s = JSON.parse(localStorage.getItem('goGrind:settings') || '{}');
+        if (s.themeLight === true) document.currentScript.parentElement.classList.add('theme-light');
+      } catch (e) {}
+    })();
+  </script>
   <div class="wrap" id="appRoot">
     <div class="loading-note">Loading your grind log…</div>
   </div>
