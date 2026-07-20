@@ -84,7 +84,12 @@
   .import-msg{font-size:11.5px; color:var(--muted); margin:0; min-height:0;}
   @media (max-width:560px){ .backup-toolbar{flex-direction:column;} }
 
-  .live-stat{background:var(--panel); border:1px solid var(--diamond3); border-radius:8px; padding:10px 14px; margin:0 0 18px; text-align:center;}
+  /* Draggable on both phone (touch) and laptop (mouse) via Pointer Events — cursor
+     affordance, no text-selection while dragging, own compositing layer to avoid iOS
+     Safari's fixed-position repaint jitter, and touch-action:none so a drag doesn't
+     also try to scroll the page underneath it. */
+  .live-stat{background:var(--panel); border:1px solid var(--diamond3); border-radius:8px; padding:10px 14px; margin:0 0 18px; text-align:center; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; transform:translateZ(0); will-change:transform;}
+  .widget-dragging{cursor:grabbing !important; opacity:0.85; box-shadow:0 8px 24px rgba(0,0,0,.7) !important; transition:none !important;}
   .live-stat .live-label{display:block; font-size:10.5px; letter-spacing:.3px; text-transform:uppercase; color:var(--muted); margin-bottom:4px;}
   .live-stat .live-value{font-size:24px; font-weight:800; color:var(--diamond3); font-variant-numeric:tabular-nums;}
   .live-stat .live-sub{font-size:10px; color:var(--muted); margin-top:3px;}
@@ -716,10 +721,14 @@
        typeable field prevents the zoom from triggering at all, everywhere in the app. */
     input[type="text"], input[type="number"], input[type="email"], input[type="search"], textarea, select{font-size:16px !important;}
     .app{padding:20px 12px 50px;}
-    /* Both floating widgets get their own compositing layer (transform/will-change) —
-       this is the standard fix for iOS Safari's fixed-position jitter, where tapping
-       elsewhere on the page can otherwise cause a brief scroll/repaint bounce. */
-    .live-stat{position:fixed; top:10px; right:10px; width:100px; margin:0; padding:6px 8px; box-shadow:0 4px 14px rgba(0,0,0,.5); z-index:10; border-radius:6px; transform:translateZ(0); will-change:transform; touch-action:none;}
+    /* The sync-status message swaps between short ("Saving…") and long ("✓ Saved — …")
+       text on every counter tap. The long version wraps to 2 lines on phone while the
+       short one is 1 line, so the box's height was changing on every tap and shoving
+       everything below it down and back up — that's the tap jitter. Reserving space for
+       the tallest (2-line) version keeps the height constant regardless of which message
+       is showing. */
+    .sync-status{min-height:56px;}
+    .live-stat{position:fixed; top:10px; right:10px; width:100px; margin:0; padding:6px 8px; box-shadow:0 4px 14px rgba(0,0,0,.5); z-index:10; border-radius:6px;}
     .live-stat .live-label{font-size:8px;}
     .live-stat .live-value{font-size:16px;}
     .live-stat .live-sub{font-size:8px;}
@@ -729,7 +738,6 @@
     .session-goal-widget .sg-kills{font-size:15px;}
     .session-goal-widget .sg-goal{font-size:10px;}
     .session-goal-widget .sg-set-btn{font-size:9px; padding:4px 6px;}
-    .widget-dragging{opacity:0.85; box-shadow:0 8px 24px rgba(0,0,0,.7) !important; transition:none !important;}
     .counters{flex-direction:column;}
     .counter-card, .counter-card.rare{flex:1 1 auto; width:100%;}
     .total-rare-row{flex-direction:column; flex:1 1 auto;}

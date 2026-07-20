@@ -1666,16 +1666,14 @@
     }
   }
 
-  // --- Phone-only: the Avg Kills/Diamond and Session Goal widgets can be dragged and
-  // snapped to any of the four screen corners, remembered per-device via localStorage.
-  // Fully inert on desktop/laptop — every entry point is gated on the same phone-width
-  // check, so nothing here ever sets an inline style outside that width.
-  function isPhoneViewport(){
-    return window.matchMedia('(max-width:640px)').matches;
-  }
-  function otherFloatingWidget(el){
-    return el.id === 'liveStatWidget' ? document.getElementById('sessionGoalWidget') : document.getElementById('liveStatWidget');
-  }
+  // --- The Avg Kills/Diamond and Session Goal widgets can be dragged and snapped to
+  // any of the four screen corners, on both phone (touch) and laptop (mouse) — Pointer
+  // Events cover both input types with one set of handlers. Each widget's chosen corner
+  // is remembered via localStorage. Whichever widget was most recently dropped into a
+  // corner takes the position closest to the corner; if the other widget is already
+  // sitting there, it gets pushed out past it — there's no fixed "always on top/bottom"
+  // widget, ordering is purely whoever moved there last.
+  const INNER_WIDGET_KEY = 'floatingWidgetInnerId';
   function applyWidgetCorner(el, corner, extraOffset){
     const margin = 10, off = extraOffset || 0;
     el.style.left = el.style.right = el.style.top = el.style.bottom = 'auto';
@@ -1685,31 +1683,42 @@
     else { el.style.bottom = (margin + off) + 'px'; el.style.right = margin + 'px'; }
     el.dataset.corner = corner;
   }
-  // If both widgets land in the same corner, push the second one further out past the
-  // first rather than letting them overlap. Safe to call anytime — no-ops on desktop
-  // since dataset.corner is never set there.
-  function refreshWidgetStacking(){
+  // Re-lays out both widgets. If they're in different corners, each just sits at its own
+  // base position. If they're in the same corner, whichever one is "inner" (justMovedId,
+  // or whoever claimed it last) sits flush in the corner and the other is pushed out past
+  // it. Safe to call anytime, including before either widget has a corner assigned yet.
+  function refreshWidgetStacking(justMovedId){
     const live = document.getElementById('liveStatWidget');
     const goal = document.getElementById('sessionGoalWidget');
     if(!live || !goal) return;
     if(!live.dataset.corner || !goal.dataset.corner) return;
     if(goal.style.display === 'none' || live.style.display === 'none') return;
-    if(live.dataset.corner === goal.dataset.corner){
-      const liveRect = live.getBoundingClientRect();
-      applyWidgetCorner(goal, goal.dataset.corner, liveRect.height + 10);
-    } else {
+    if(live.dataset.corner !== goal.dataset.corner){
+      applyWidgetCorner(live, live.dataset.corner, 0);
       applyWidgetCorner(goal, goal.dataset.corner, 0);
+      return;
     }
+    let innerId = justMovedId;
+    if(!innerId){
+      try{ innerId = localStorage.getItem(INNER_WIDGET_KEY); }catch(e){}
+    }
+    if(innerId !== 'liveStatWidget' && innerId !== 'sessionGoalWidget') innerId = 'liveStatWidget';
+    if(justMovedId){
+      try{ localStorage.setItem(INNER_WIDGET_KEY, justMovedId); }catch(e){}
+    }
+    const innerEl = innerId === 'liveStatWidget' ? live : goal;
+    const outerEl = innerId === 'liveStatWidget' ? goal : live;
+    applyWidgetCorner(innerEl, innerEl.dataset.corner, 0);
+    const innerRect = innerEl.getBoundingClientRect();
+    applyWidgetCorner(outerEl, outerEl.dataset.corner, innerRect.height + 10);
   }
   function setupDraggableWidget(el, storageKey){
     if(!el) return;
     let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
 
     function onStart(e){
-      if(!isPhoneViewport()) return;
-      const t = e.touches[0];
       const rect = el.getBoundingClientRect();
-      startX = t.clientX; startY = t.clientY;
+      startX = e.clientX; startY = e.clientY;
       startLeft = rect.left; startTop = rect.top;
       el.style.left = startLeft + 'px';
       el.style.top = startTop + 'px';
@@ -1717,12 +1726,12 @@
       el.style.bottom = 'auto';
       dragging = true;
       el.classList.add('widget-dragging');
+      try{ el.setPointerCapture(e.pointerId); }catch(err){}
     }
     function onMove(e){
       if(!dragging) return;
       e.preventDefault();
-      const t = e.touches[0];
-      const dx = t.clientX - startX, dy = t.clientY - startY;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
       const rect = el.getBoundingClientRect();
       const maxLeft = window.innerWidth - rect.width - 2;
       const maxTop = window.innerHeight - rect.height - 2;
@@ -1738,15 +1747,14 @@
       const corner = (cy < window.innerHeight / 2 ? 't' : 'b') + (cx < window.innerWidth / 2 ? 'l' : 'r');
       applyWidgetCorner(el, corner);
       try{ localStorage.setItem(storageKey, corner); }catch(e){}
-      refreshWidgetStacking();
+      refreshWidgetStacking(el.id);
     }
-    el.addEventListener('touchstart', onStart, { passive:true });
-    el.addEventListener('touchmove', onMove, { passive:false });
-    el.addEventListener('touchend', onEnd);
-    el.addEventListener('touchcancel', onEnd);
+    el.addEventListener('pointerdown', onStart);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onEnd);
+    el.addEventListener('pointercancel', onEnd);
 
     el._restoreWidgetCorner = function(){
-      if(!isPhoneViewport()) return;
       let corner = 'tr';
       try{ corner = localStorage.getItem(storageKey) || 'tr'; }catch(e){}
       applyWidgetCorner(el, corner);
@@ -1762,6 +1770,7 @@
         </div>
         <p class="subtitle">Track your (Great One) Grinds using this highly-specialized and detailed counter. Count kills, get averages, and log grinds!</p>
         <div class="sync-status" id="syncStatus"></div>
+        <p class="storage-note">If auto-save shows "Saved," it's stored to your account and safe across tab closes. If it shows the auto-save notice instead, export a backup before closing this tab — you'll get a browser warning if you try to close with unexported changes.</p>
       </header>
 
       <div class="live-stat" id="liveStatWidget" style="display:none;">
@@ -2168,7 +2177,6 @@
         <div id="resetBtnWrap" style="display:none; margin-bottom:14px;">
           <button id="resetBtn" class="reset-danger-btn">Reset all data</button>
         </div>
-        <p class="storage-note">If auto-save shows "Saved," it's stored to your account and safe across tab closes. If it shows the auto-save notice instead, export a backup before closing this tab — you'll get a browser warning if you try to close with unexported changes.</p>
       </footer>
     `;
 
@@ -2645,7 +2653,6 @@
       ${buildCounterHTML(g)}
 
       <section class="log-action">
-        <input type="text" id="notesInput" placeholder="Notes (optional)" maxlength="120" value="${escapeAttr(g.notes||'')}" />
         ${!isNonGo ? `<button id="logGOBtn" class="go-btn">Log Great One</button>` : `<button id="logGOBtn" class="go-btn" style="background:var(--antler)">End Grind</button>`}
       </section>
 
@@ -2719,14 +2726,6 @@
       gg => totalKillsOf(gg), (gg,val) => { const dia = totalDiamond(gg); const troll = gg.maxLevelOnly||0; gg.other = Math.max(0, val - dia - troll); }, mainAfterApply('other'));
     wireEditableCount(document.getElementById('rareCount'), 'Rare Fur', getActiveGrind,
       gg => gg.rareCount||0, (gg,val) => { gg.rareCount = val; }, mainAfterApply('rareCount'));
-
-    const notesInput = document.getElementById('notesInput');
-    if(notesInput){
-      notesInput.addEventListener('input', () => {
-        const active = getActiveGrind();
-        if(active){ active.notes = notesInput.value; markDirty(); scheduleSave(); }
-      });
-    }
 
     const logBtn = document.getElementById('logGOBtn');
     if(logBtn){
