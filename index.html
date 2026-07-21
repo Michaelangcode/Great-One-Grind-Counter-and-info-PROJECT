@@ -17,11 +17,7 @@
       <div class="modal-box" style="text-align:left;">
         <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Beta Access</h3>
         <p>Enter your invite code to continue.</p>
-        <input type="text" id="betaCodeInput" placeholder="Invite code" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-size:13px;">
-        <label class="del-two-step-label" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:16px;color:var(--muted);text-align:left;">
-          <input type="checkbox" id="betaNdaCheck">
-          <span>I agree not to share this app, its contents, or beta features with anyone outside this program.</span>
-        </label>
+        <input type="text" id="betaCodeInput" placeholder="Invite code" style="width:100%;box-sizing:border-box;margin-bottom:16px;padding:9px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;font-size:13px;">
         <div id="betaGateError" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;"></div>
         <div class="modal-actions">
           <button id="betaGateSubmit" class="confirm-go">Enter</button>
@@ -372,11 +368,10 @@ if ('serviceWorker' in navigator) {
 
   document.getElementById('betaGateSubmit').addEventListener('click', async function() {
     var code = document.getElementById('betaCodeInput').value.trim();
-    var agreed = document.getElementById('betaNdaCheck').checked;
     var errorBox = document.getElementById('betaGateError');
 
-    if (!code || !agreed) {
-      errorBox.textContent = 'Enter a code and agree to the terms.';
+    if (!code) {
+      errorBox.textContent = 'Enter a code to continue.';
       errorBox.style.display = 'block';
       return;
     }
