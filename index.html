@@ -43,6 +43,19 @@
         <div class="modal-actions">
           <button id="tosGateAgree" class="confirm-go" disabled>Agree &amp; Continue</button>
         </div>
+        <p style="font-size:11px;color:var(--muted);margin:10px 0 0;">You'll only see this once &mdash; unless the Terms of Service or Privacy Policy are updated, in which case you'll be asked to review and agree again.</p>
+      </div>
+    </div>
+    <div id="installPromptModal" class="modal hidden" style="z-index:99997;">
+      <div class="modal-box" style="text-align:left;max-width:380px;">
+        <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Install This Tool?</h3>
+        <p style="font-size:13px;">Great One Grind Log can be installed straight from your browser, so it opens like its own app instead of a browser tab &mdash; no app store needed.</p>
+        <p style="font-size:12px;color:var(--muted);">Not right now? No problem &mdash; you can install it anytime later from the <strong>How to Use Tool</strong> tab.</p>
+        <div class="modal-actions">
+          <button id="installPromptDismiss">No Thanks</button>
+          <button id="installPromptGo" class="confirm-go">Show Me How</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin:10px 0 0;">This message is shown once.</p>
       </div>
     </div>
     <div id="welcomeGuideModal" class="modal hidden" style="z-index:99997;">
@@ -58,6 +71,7 @@
           <button id="welcomeGuideDismiss">No Thanks</button>
           <button id="welcomeGuideGo" class="confirm-go">Take Me There</button>
         </div>
+        <p style="font-size:11px;color:var(--muted);margin:10px 0 0;">This message is shown once.</p>
       </div>
     </div>
     <div class="app">
@@ -302,7 +316,37 @@ if ('serviceWorker' in navigator) {
     "66eab3648d23eacb88289bf9e6d80c7c31deae9d2f31f021190470f352030ca5",
     "bd705cf7962b92ac6aee4f838cb0d5f8cabce31ef1efe1d7c42ef36b363bf109",
     "25fb5ed95b9fa473e13b940a3bc1c24e961817a7b5312199e352e5414cfc0b0a",
-    "c0699739674c2a117ed153d13bf7cef4880e97600f4872626ac2d5daabec8a5c"
+    "c0699739674c2a117ed153d13bf7cef4880e97600f4872626ac2d5daabec8a5c",
+    "961bb7481e8f8b958725ce5716a3b6285d40fd1c3e5ab6db101eff259bcab2c5",
+    "13c3b8fc329bcd67ecbc6fea659f36d909865789f68585573c7304e82e07ec85",
+    "ef989beab4fe3539e00136480872b2002916d16528c95f7a667b1c7251d5f81a",
+    "d0f5ecc78b51b3f6f8806040da520e13667bba280369e37dd9a0725088fdbc18",
+    "ff33814ba269fe4ac38e4288fdbf90fc510d4df62646d16165898958c8c570bd",
+    "0c48c4b1074f4282335ca1df09fe5020339c0e8b392541eb479ef9b4847367fd",
+    "38adbfe53fb2d7bb8b49bc038c9407fff2b904983dca0203df713c33845bf53d",
+    "1924a98328c8c29e05f5456d6e29a93c6d3a0394f7bd511d003a83235c75c01b",
+    "6be7b8d23a0386b12e9da7eccd0753204c2fab63238281cadab612c07da677d2",
+    "1299529e968e3dd70016353bee6830fc2636606f4026d6b11c4c3b1c5c431e67",
+    "0820f6dd842edbe872fe770f4572207df5abb9e004d5d85122be0050b0a11626",
+    "e1eee74c0f23171f4031507fecdb58376e292cad9b12aa8b360a8976277ae6e9",
+    "be7ce6bf64be9852ececf13246f5b1240427b391df731959bf105e6a999bd224",
+    "38288b1f67a1e07616b77f5b0254a8cf155e79d9a50afd4bf52dd0401f49a4cd",
+    "4033fb6802343f5175b7d9ac3c9445fa15a70efd2ba4c7e3cd8cbd3c109343cf",
+    "b58c0ed7fe5c622098568cd4b52549ff2f95ca9a50a1fcd0e11d2910224087f9",
+    "3dd7e2567bf44c7bd0df106cfd23fae32f44f174af6891380f8384b58d804e15",
+    "d60a92d3825d74c41b6695c95d046139f55fb26011f978cc9127e24f43e72a28",
+    "4cb27eb94a15c4f159a647593d0bc3a3750f92896ffc05425f1fcf98d5942689",
+    "332e68efdb1935e45e6ef5d52a85379d08ed466cfb0646f978652d2ea14e60bf",
+    "cae291497994dbeaa32f4e30be7cd222682ec4c701438919c42fc01341dc1362",
+    "3bebc35ce57eb460b270ac76b259a79d60c4eaf88c959cb091f3dacfce0897e0",
+    "6b7360b3168a89cee0d31a72d5b32958d9aa352e22dd75ab2f578fa2d656c100",
+    "1316b3ae271d10b166a9c05587817caab5486c734b6b1a7c813dc305caebf493",
+    "e8dd16576225db162e4f19cb7018c285a6e5fcf8985d1d58d519e584bff0fde4",
+    "b82905af1e5b581852eed036e2d4604d2268db8731824042245de59662f89493",
+    "717d11b5669d71d2796abbcaabe7fe3ce2f76a35e4173c9c3bc40ecde1db3e51",
+    "ce684c03714ab177201e9e4dd06d196eebc5ec286d6c9ffba7966332d01c828c",
+    "8851f3a9e2abafc52fbdb3f30faeff3bbb566d3055260de47275fd3a4eded1e9",
+    "c71c4e985572097c436300ec56dc9731f2c42ec904fd1773674fcab9590b3ebb"
   ];
 
   var gate = document.getElementById('betaGate');
@@ -394,11 +438,41 @@ if ('serviceWorker' in navigator) {
     });
   }
 
+  // First-time-only prompt letting a brand-new user know the tool can be installed as a
+  // browser app, shown right after the ToS/Privacy gate and before the How to Use Tool
+  // pointer below. Never shown again once dismissed (either button). Choosing "Show Me
+  // How" jumps straight to the install instructions and marks the welcome-guide popup
+  // as seen too, since the user is already headed to that same tab.
+  var INSTALL_KEY = 'installPromptSeenV1';
+  function maybeShowInstallPrompt(next) {
+    if (localStorage.getItem(INSTALL_KEY) === 'true') { next(); return; }
+    var modal = document.getElementById('installPromptModal');
+    if (!modal) { next(); return; }
+    modal.classList.remove('hidden');
+    document.getElementById('installPromptDismiss').addEventListener('click', function() {
+      localStorage.setItem(INSTALL_KEY, 'true');
+      modal.classList.add('hidden');
+      next();
+    });
+    document.getElementById('installPromptGo').addEventListener('click', function() {
+      localStorage.setItem(INSTALL_KEY, 'true');
+      localStorage.setItem(WELCOME_KEY, 'true');
+      modal.classList.add('hidden');
+      var ctBtn = document.querySelector('.tab-btn[data-tab="counter-tool"]');
+      if (ctBtn) ctBtn.click();
+      setTimeout(function() {
+        var guide = document.getElementById('installGuide');
+        if (guide) guide.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
+    });
+  }
+
   agreeBtn.addEventListener('click', function() {
     if (agreeBtn.disabled) return;
     localStorage.setItem(LEGAL_KEY, 'true');
     tosGate.classList.add('hidden');
-    maybeShowWelcomeGuide();
+    maybeShowInstallPrompt(maybeShowWelcomeGuide);
   });
 })();
 </script>
