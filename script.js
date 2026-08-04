@@ -177,9 +177,11 @@
   const trollIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8L11 2L9 7L12 10L9 14L11 19Z"/><path d="M13 4L19 10L13 21L11 16L14 12L11 9Z"/><path d="M8 19l3 1-1 3-3-1z"/></svg>`;
 
   function totalDiamond(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0); }
-  // diamondLvl3 = top-tier diamond (Lv3/Lv5/Lv9) — counts toward max-level
-  // diamondLvl2 = lower diamond (Lv2/Lv4/Lv8) — does NOT count toward max-level
-  function totalMaxLevel(c){ return (c.diamondLvl3||0) + (c.maxLevelOnly||0); }
+  // "Max-Level" as a combined stat (Diamond + Trolls) has been removed entirely — it
+  // wrongly assumed every Diamond kill was also a max-level kill, which isn't true for
+  // 3-level and 5-level species (Diamond can be reached a level early, e.g. Lv2 of 3 or
+  // Lv4 of 5). Every former Max-Level total/label across the app is now just Trolls.
+  function totalTrolls(c){ return (c.maxLevelOnly||0); }
   function totalMaxWeight(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0) + (c.maxLevelOnly||0) + (c.maxWeightOnly||0); }
   // Max-Weight Est is no longer tracked by the counter (removed from UI); Total Kills no longer includes it going forward.
   function totalKillsOf(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0) + (c.maxLevelOnly||0) + (c.other||0); }
@@ -548,21 +550,21 @@
     card.appendChild(panel);
     openCounterEdit = { grindId, g, panel, snapshot };
 
-    // Wire Save Changes — shows a before/after diff. Either choice keeps the panel open,
-    // just applying either the saved or the reverted counts.
+    // Wire Save Changes — shows a before/after diff, then closes the panel either way,
+    // so Save/Revert doubles as the way to actually dismiss the editor once you're done.
     panel.querySelector('.go-inline-counter-save').addEventListener('click', () => {
       showCounterEditConfirmModal(snapshot, g, {
-        onSave: () => saveCounterEditInPlace(g, grindId, panel, snapshot),
-        onRevert: () => revertCounterEditInPlace(g, grindId, panel, snapshot),
+        onSave: () => finishCounterEdit(grindId, panel),
+        onRevert: () => { revertGrindCounters(g, snapshot); finishCounterEdit(grindId, panel); },
         message: 'Save these changes to the logged grind? This can’t be automatically reverted once saved.',
         dismissLabel: 'Cancel'
       });
     });
     // Wire Revert to Original — shares the same diff-view modal as Save Changes, so you
-    // can see exactly what would be undone before confirming.
+    // can see exactly what would be undone before confirming. Also closes the panel.
     panel.querySelector('.go-inline-counter-revert').addEventListener('click', () => {
       showCounterEditConfirmModal(snapshot, g, {
-        onRevert: () => revertCounterEditInPlace(g, grindId, panel, snapshot),
+        onRevert: () => { revertGrindCounters(g, snapshot); finishCounterEdit(grindId, panel); },
         message: 'Revert this grind’s counters back to their last saved baseline? It only undoes edits you haven’t saved yet — it won’t work on changes you’ve already confirmed with Save Changes.',
         dismissLabel: 'Cancel',
         showSave: false
@@ -909,7 +911,7 @@
     return `
       <span class="go-stat-item"><span class="go-counter-lbl">Dia</span> <span class="go-counter-val">${totalDiamond(g)}</span></span>
       <span class="go-stat-sep">·</span>
-      <span class="go-stat-item"><span class="go-counter-lbl">Max-Lvl</span> <span class="go-counter-val">${totalMaxLevel(g)}</span></span>
+      <span class="go-stat-item"><span class="go-counter-lbl">Trolls</span> <span class="go-counter-val">${totalTrolls(g)}</span></span>
       <span class="go-stat-sep">·</span>
       <span class="go-stat-item go-counter-total"><span class="go-counter-lbl">Total</span> <span class="go-counter-val">${totalKillsOf(g)}</span></span>${rareItem}
       <span class="go-stat-sep">·</span>
@@ -1860,7 +1862,7 @@
           <p class="info-text">The counter has three buttons, each tracking a specific kill type:</p>
           <ul class="how-it-works-list">
             <li><strong>Diamond</strong> &mdash; Any diamond-rank kill for the species, combined into one count.</li>
-            <li><strong>Trolls</strong> &mdash; A max-level animal that didn't make diamond. Only tap this for trolled kills; your Diamond count is combined with Trolls automatically wherever a "Max-Level" figure is shown elsewhere (like All Grinds Summary), so you don't need to track that combination yourself.</li>
+            <li><strong>Trolls</strong> &mdash; A max-level animal that didn't make diamond. Only tap this for trolled kills. This is tracked entirely separately from Diamond, since some species can reach diamond rank a level before max level (e.g. Lv2 of 3, or Lv4 of 5) &mdash; so a Diamond kill isn't always a max-level kill, and the two are never combined into a single figure anywhere in the app.</li>
             <li><strong>Total Kills</strong> &mdash; Any other kill that doesn't fit the categories above. Only tap for kills not already counted.</li>
           </ul>
 
@@ -2820,16 +2822,16 @@
     } else {
       const n = completed.length || 1;
       const sumDiamond = completed.reduce((s,e)=>s+totalDiamond(e),0);
-      const sumL = completed.reduce((s,e)=>s+totalMaxLevel(e),0);
+      const sumTroll = completed.reduce((s,e)=>s+totalTrolls(e),0);
       const sumT = completed.reduce((s,e)=>s+totalKillsOf(e),0);
       const sumRare = completed.reduce((s,e)=>s+(e.rareCount||0),0);
-      // Avg kills/diamond, Avg kills/max-level, Total rares/diamonds/max-levels/kills track the
+      // Avg kills/diamond, Avg kills/troll, Total rares/diamonds/trolls/kills track the
       // currently active grind live (in sync with the counter section) as long as it's still open —
       // everything else only reflects grinds that have actually been logged.
       const active = getActiveGrind();
       const liveExtra = (active && active.status === 'open') ? active : null;
       const sumDiamondLive = sumDiamond + (liveExtra ? totalDiamond(liveExtra) : 0);
-      const sumLLive = sumL + (liveExtra ? totalMaxLevel(liveExtra) : 0);
+      const sumTrollLive = sumTroll + (liveExtra ? totalTrolls(liveExtra) : 0);
       const sumTLive = sumT + (liveExtra ? totalKillsOf(liveExtra) : 0);
       const sumRareLive = sumRare + (liveExtra ? (liveExtra.rareCount||0) : 0);
       const hasLiveData = completed.length > 0 || !!liveExtra;
@@ -2837,17 +2839,17 @@
         <div class="stat-box" style="grid-column:1; grid-row:1;"><div class="stat-num">${totalAll}</div><div class="stat-lbl">Total grinds (all time)</div></div>
         ${hasLiveData ? `
         <div class="stat-box diamond3" style="grid-column:2; grid-row:1;"><div class="stat-num">${sumDiamondLive === 0 ? '—' : (sumTLive/sumDiamondLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per diamond (all time)</div></div>
-        <div class="stat-box antler" style="grid-column:3; grid-row:1;"><div class="stat-num">${sumLLive === 0 ? '—' : (sumTLive/sumLLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per max-level (all time)</div></div>
+        <div class="stat-box antler" style="grid-column:3; grid-row:1;"><div class="stat-num">${sumTrollLive === 0 ? '—' : (sumTLive/sumTrollLive).toFixed(2)}</div><div class="stat-lbl">Avg kills per troll (all time)</div></div>
         ` : ''}
         <div class="stat-box diamond3" style="grid-column:4; grid-row:1;"><div class="stat-num">${(sumDiamond/n).toFixed(1)}</div><div class="stat-lbl">Avg diamonds / grind</div></div>
-        <div class="stat-box antler" style="grid-column:5; grid-row:1;"><div class="stat-num">${(sumL/n).toFixed(1)}</div><div class="stat-lbl">Avg max-level / grind</div></div>
+        <div class="stat-box antler" style="grid-column:5; grid-row:1;"><div class="stat-num">${(sumTroll/n).toFixed(1)}</div><div class="stat-lbl">Avg trolls / grind</div></div>
         <div class="stat-box total" style="grid-column:6; grid-row:1;"><div class="stat-num">${(sumT/n).toFixed(1)}</div><div class="stat-lbl">Avg total kills / grind</div></div>
         <div class="stat-box" style="grid-column:1; grid-row:2;"><div class="stat-num">${totalOpen}</div><div class="stat-lbl">Open grinds</div></div>
         <div class="stat-box" style="grid-column:2; grid-row:2;"><div class="stat-num">${totalDone}</div><div class="stat-lbl">Logged grinds</div></div>
         ${hasLiveData ? `
         <div class="stat-box rare" style="grid-column:3; grid-row:2;"><div class="stat-num">${sumRareLive}</div><div class="stat-lbl">Total rares</div></div>
         <div class="stat-box diamond3" style="grid-column:4; grid-row:2;"><div class="stat-num">${sumDiamondLive}</div><div class="stat-lbl">Total diamonds (all time)</div></div>
-        <div class="stat-box antler" style="grid-column:5; grid-row:2;"><div class="stat-num">${sumLLive}</div><div class="stat-lbl">Total max-levels (all time)</div></div>
+        <div class="stat-box antler" style="grid-column:5; grid-row:2;"><div class="stat-num">${sumTrollLive}</div><div class="stat-lbl">Total trolls (all time)</div></div>
         <div class="stat-box total" style="grid-column:6; grid-row:2;"><div class="stat-num">${sumTLive}</div><div class="stat-lbl">Total kills (all time)</div></div>
         ` : ''}
       `;
@@ -2980,7 +2982,7 @@
       // Compute averages per map
       const metrics = [
         { key:'diamond', label:'Avg kills / Diamond', color:'var(--diamond3)' },
-        { key:'maxlevel', label:'Avg kills / Max-Level', color:'var(--antler)' },
+        { key:'maxlevel', label:'Avg kills / Trolls', color:'var(--antler)' },
         { key:'total', label:'Avg kills / GO Spawn', color:'var(--blaze)' },
       ];
 
@@ -2988,7 +2990,7 @@
         const gs = platformCompleted.filter(g => grindSpeciesLabel(g) === selSpecies && (g.map||'—') === map);
         const n = gs.length || 1;
         const sumD = gs.reduce((s,g)=>s+totalDiamond(g),0);
-        const sumL = gs.reduce((s,g)=>s+totalMaxLevel(g),0);
+        const sumL = gs.reduce((s,g)=>s+totalTrolls(g),0);
         const sumT = gs.reduce((s,g)=>s+totalKillsOf(g),0);
         return {
           map,
@@ -3010,10 +3012,12 @@
       const labelH = 44;
       const chartH = 260 + topPad;
       const totalW = Math.max(480, numMetrics * (groupW + groupGap) + 60);
-      // Anchor horizontal centering on the "Avg kills / Max-Level" group specifically,
+      // Anchor horizontal centering on the "Avg kills / Trolls" group specifically,
       // not the raw SVG bounding box — totalW has a minimum-width floor and a trailing
       // margin that can leave the actual bars sitting left of the box's own geometric
-      // center, and Max-Level is the metric that should be front-and-center regardless.
+      // center, and Trolls is the metric that should be front-and-center regardless.
+      // (Internal key/variable names below still say "maxlevel" — purely an internal
+      // identifier, not shown to users.)
       const maxLevelIdx = Math.max(0, metrics.findIndex(m => m.key === 'maxlevel'));
       const maxLevelGroupX = 20 + maxLevelIdx * (groupW + groupGap);
       const maxLevelCenterX = maxLevelGroupX + groupW / 2;
@@ -3116,7 +3120,7 @@
       // container + center transform-origin above already put the box's own geometric
       // center at the viewport's center for pan=(0,0). We then offset from that by
       // exactly enough to put maxLevelCenterX (not the box's raw center) at the
-      // viewport's center instead, so "Avg kills / Max-Level" is what's front and center.
+      // viewport's center instead, so "Avg kills / Trolls" is what's front and center.
       function centerContent(){
         panX = -scale * (maxLevelCenterX - totalW / 2);
         panY = 0;
@@ -3335,7 +3339,7 @@
       }
 
       const n = completed.length;
-      const vals = completed.flatMap(e => [totalDiamond(e), totalMaxLevel(e), totalKillsOf(e)]);
+      const vals = completed.flatMap(e => [totalDiamond(e), totalTrolls(e), totalKillsOf(e)]);
       const maxVal = Math.max(1, ...vals);
       const barW=8, gap=3, groupGap=20;
       const groupW = barW*3 + gap*2;
@@ -3345,11 +3349,11 @@
       const totalW = Math.max(340, n*(groupW+groupGap) + 20);
       let bars = '';
       completed.forEach((e,i) => {
-        const dia=totalDiamond(e), l=totalMaxLevel(e), tk=totalKillsOf(e);
+        const dia=totalDiamond(e), l=totalTrolls(e), tk=totalKillsOf(e);
         const x = i*(groupW+groupGap)+14;
         const series = [
           {v:dia, color:'var(--diamond3)', label:'Diamonds'},
-          {v:l,   color:'var(--antler)',   label:'Max-Level'},
+          {v:l,   color:'var(--antler)',   label:'Trolls'},
           {v:tk,  color:'var(--total)',    label:'Total Kills'}
         ];
         series.forEach((s, si) => {
@@ -3368,7 +3372,7 @@
           <svg viewBox="0 0 ${totalW} ${chartH}" width="${totalW}" height="${chartH}" style="display:block; min-width:${totalW}px;">${bars}</svg>
           <div class="legend">
             <span><span class="swatch diamond3"></span>Diamonds</span>
-            <span><span class="swatch antler"></span>Max-Level</span>
+            <span><span class="swatch antler"></span>Trolls</span>
             <span><span class="swatch total"></span>Total Kills</span>
           </div>
         </div>
@@ -3444,7 +3448,7 @@
 
   function exportCsv(){
     const completed = grinds.filter(g => g.loggedAt);
-    const cols = ['Name','Species','Map','Platform','Diamonds','Max-Level','Total Kills','Avg Kills/Diamond','Rare Furs','Date Logged'];
+    const cols = ['Name','Species','Map','Platform','Diamonds','Trolls','Total Kills','Avg Kills/Diamond','Rare Furs','Date Logged'];
     const escape = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
     const rows = completed.map(g => {
       const dia = totalDiamond(g);
@@ -3454,7 +3458,7 @@
         grindSpeciesLabel(g),
         g.map || '',
         g.platform || '',
-        dia, totalMaxLevel(g), tk,
+        dia, totalTrolls(g), tk,
         dia > 0 ? (tk / dia).toFixed(2) : '—',
         g.rareCount || 0,
         g.loggedAt ? new Date(g.loggedAt).toLocaleDateString() : ''
@@ -3700,7 +3704,7 @@
     const totalDone = completed.length;
     const n = completed.length || 1;
     const sumDiamond = completed.reduce((s,e)=>s+totalDiamond(e),0);
-    const sumL = completed.reduce((s,e)=>s+totalMaxLevel(e),0);
+    const sumTroll = completed.reduce((s,e)=>s+totalTrolls(e),0);
     const sumT = completed.reduce((s,e)=>s+totalKillsOf(e),0);
     const sumRare = completed.reduce((s,e)=>s+(e.rareCount||0),0);
     // Mirrors renderStats(): averages/totals include the live active grind (if still open)
@@ -3708,7 +3712,7 @@
     const active = getActiveGrind();
     const liveExtra = (active && active.status === 'open') ? active : null;
     const sumDiamondLive = sumDiamond + (liveExtra ? totalDiamond(liveExtra) : 0);
-    const sumLLive = sumL + (liveExtra ? totalMaxLevel(liveExtra) : 0);
+    const sumTrollLive = sumTroll + (liveExtra ? totalTrolls(liveExtra) : 0);
     const sumTLive = sumT + (liveExtra ? totalKillsOf(liveExtra) : 0);
     const sumRareLive = sumRare + (liveExtra ? (liveExtra.rareCount||0) : 0);
     const hasLiveData = completed.length > 0 || !!liveExtra;
@@ -3719,21 +3723,21 @@
       { label:'Logged Grinds', value: totalDone, color: theme.text },
     ];
 
-    // Ordered so a 3-col grid lands diamond items in the left column, max-level items in
+    // Ordered so a 3-col grid lands diamond items in the left column, troll items in
     // the middle column, and kills items in the right column (rares fall to the next row's
     // leftmost slot instead of getting their own column).
     const avgStats = [];
     if(hasLiveData){
       avgStats.push(
         { label:'Avg Kills / Diamond (all time)', value: sumDiamondLive === 0 ? '—' : (sumTLive/sumDiamondLive).toFixed(2), color: theme.diamond3 },
-        { label:'Avg Kills / Max-Level (all time)', value: sumLLive === 0 ? '—' : (sumTLive/sumLLive).toFixed(2), color: theme.antler }
+        { label:'Avg Kills / Troll (all time)', value: sumTrollLive === 0 ? '—' : (sumTLive/sumTrollLive).toFixed(2), color: theme.antler }
       );
     }
     if(completed.length > 0){
       avgStats.push(
         { label:'Avg Total Kills / Grind', value: (sumT/n).toFixed(1), color: theme.total },
         { label:'Avg Diamonds / Grind', value: (sumDiamond/n).toFixed(1), color: theme.diamond3 },
-        { label:'Avg Max-Level / Grind', value: (sumL/n).toFixed(1), color: theme.antler }
+        { label:'Avg Trolls / Grind', value: (sumTroll/n).toFixed(1), color: theme.antler }
       );
     }
 
@@ -3741,7 +3745,7 @@
     if(hasLiveData){
       totalStats.push(
         { label:'Total Diamonds (all time)', value: sumDiamondLive, color: theme.diamond3 },
-        { label:'Total Max-Levels (all time)', value: sumLLive, color: theme.antler },
+        { label:'Total Trolls (all time)', value: sumTrollLive, color: theme.antler },
         { label:'Total Kills (all time)', value: sumTLive, color: theme.total },
         { label:'Total Rares', value: sumRareLive, color: theme.rare }
       );
