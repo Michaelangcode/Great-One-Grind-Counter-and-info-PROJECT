@@ -3420,6 +3420,22 @@
   function escapeAttr(str){ return String(str).replace(/"/g, '&quot;'); }
   function clampInt(v){ const n = parseInt(v,10); return isNaN(n)||n<0 ? 0 : n; }
 
+  // Shows a status line under the Export/Import buttons — green for success, red for
+  // errors — so a rejected/invalid file import doesn't blend in as plain neutral text.
+  // Clears itself after 4s, matching the existing message timing.
+  function setImportMsg(text, type){
+    const msg = document.getElementById('importMsg');
+    if(!msg) return;
+    msg.textContent = text;
+    msg.classList.remove('success','error');
+    if(type) msg.classList.add(type);
+    if(text){
+      setTimeout(() => {
+        if(msg.textContent === text){ msg.textContent=''; msg.classList.remove('success','error'); }
+      }, 4000);
+    }
+  }
+
   function exportData(){
     const count = grinds.length;
     askConfirm(`This will download a backup file containing all ${count} of your current grind${count!==1?'s':''} (open and logged), plus your keyboard sync bindings, custom species/maps, and other settings. Save it somewhere safe — you can use it to restore your data or move it to another browser/device.`, () => {
@@ -3441,8 +3457,7 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       hasUnsavedChanges = false;
       if(!storageAvailable) setSyncStatus('unavailable');
-      const msg = document.getElementById('importMsg');
-      if(msg){ msg.textContent = 'Backup downloaded.'; setTimeout(() => { if(msg.textContent === 'Backup downloaded.') msg.textContent=''; }, 4000); }
+      setImportMsg('Backup downloaded.', 'success');
     });
   }
 
@@ -3472,8 +3487,7 @@
     a.download = `great-one-grind-log-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    const msg = document.getElementById('importMsg');
-    if(msg){ msg.textContent = 'CSV downloaded.'; setTimeout(() => { if(msg.textContent==='CSV downloaded.') msg.textContent=''; }, 4000); }
+    setImportMsg('CSV downloaded.', 'success');
   }
 
   // ---------- Shareable Image Cards ----------
@@ -3849,7 +3863,6 @@
   function importData(file){
     const reader = new FileReader();
     reader.onload = () => {
-      const msg = document.getElementById('importMsg');
       try{
         const parsed = JSON.parse(reader.result);
         let incoming;
@@ -3858,7 +3871,7 @@
         } else if(Array.isArray(parsed.history)){
           incoming = migrateOldShape(parsed);
         } else {
-          if(msg) msg.textContent = "That file doesn't look like a valid backup.";
+          setImportMsg("That file doesn't look like a valid backup.", 'error');
           return;
         }
         const incomingKeybinds = (parsed.keybinds && typeof parsed.keybinds === 'object') ? parsed.keybinds : null;
@@ -3874,7 +3887,7 @@
             await saveNow();
             renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
             const extras = (addedCustom || addedKeys) ? ', plus custom options/keybinds' : '';
-            if(msg) msg.textContent = `Merged — added ${added} new grind${added!==1?'s':''}${extras}.`;
+            setImportMsg(`Merged — added ${added} new grind${added!==1?'s':''}${extras}.`, 'success');
           },
           async () => {
             grinds = incoming.grinds;
@@ -3898,11 +3911,11 @@
             markDirty();
             await saveNow();
             renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
-            if(msg) msg.textContent = 'Backup imported (overwrite).';
+            setImportMsg('Backup imported (overwrite).', 'success');
           }
         );
       }catch(e){
-        if(msg) msg.textContent = "Couldn't read that file.";
+        setImportMsg("Couldn't read that file.", 'error');
       }
     };
     reader.readAsText(file);
