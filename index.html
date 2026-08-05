@@ -14,8 +14,12 @@
 </head>
 <body>
     <div id="tosGate" class="modal hidden" style="z-index:99998;">
-      <div class="modal-box" style="text-align:left;max-width:380px;">
+      <div class="modal-box" style="text-align:left;max-width:440px;">
         <h3 style="font-family:'Merriweather',serif;color:var(--text);margin-top:0;">Before You Continue</h3>
+        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line);">
+          <img src="NyXHunt.png" alt="NyX" class="about-avatar">
+          <p style="font-size:12.5px;color:var(--muted);font-style:italic;margin:0;line-height:1.5;">&ldquo;Hello, my name is NyX, and welcome to my Grinding Counter Tool: The Great One Grind Log. I'm so glad you're here to count, log, and remember your most special hunts. Please enjoy the tool!&rdquo;</p>
+        </div>
         <p style="font-size:13px;">Please review the following before using Great One Grind Log:</p>
         <label class="del-two-step-label" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:10px;color:var(--muted);text-align:left;">
           <input type="checkbox" id="tosCheck">
@@ -270,6 +274,48 @@ if ('serviceWorker' in navigator) {
     <div class="modal-actions">
       <button id="sgMetCancel">No thanks</button>
       <button id="sgMetNewGoal" class="confirm-go">Set New Goal</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rare Fur Goals: management panel -->
+<div id="rareGoalsModal" class="modal hidden">
+  <div class="modal-box" style="max-width:340px; text-align:center;">
+    <h3 style="font-family:'Merriweather',serif;font-weight:700;font-size:15px;margin:0 0 8px;color:var(--text);">Rare Fur Goals</h3>
+    <p style="font-size:10.5px;color:var(--muted);margin:0 0 14px;line-height:1.5;">This tracker is independent &mdash; updating these counters does not affect the &ldquo;Rares&rdquo; counter, nor does it affect the All Grinds Summary. Use the &ldquo;Rares&rdquo; counter in Current Grind to log data there.</p>
+
+    <div id="rgAddNameStep">
+      <input type="text" id="rgNameInput" placeholder="Name of the rare fur" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
+      <button id="rgNameConfirmBtn" class="confirm-go" style="width:100%;">Confirm Name</button>
+    </div>
+
+    <div id="rgAddGoalStep" class="hidden">
+      <p id="rgGoalPrompt" style="font-size:12.5px;color:var(--text);margin:0 0 8px;"></p>
+      <input type="number" id="rgGoalInput" placeholder="Goal amount" min="1" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
+      <div class="modal-actions" style="justify-content:center;">
+        <button id="rgGoalCancelBtn">Cancel</button>
+        <button id="rgGoalConfirmBtn" class="confirm-go">Confirm Goal</button>
+      </div>
+    </div>
+
+    <div id="rgList" class="rg-list"></div>
+
+    <div class="modal-actions">
+      <button id="rgRevertBtn" class="confirm-danger">Revert Changes</button>
+      <button id="rgCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rare Fur Goals: goal met modal -->
+<div id="rgGoalMetModal" class="modal hidden">
+  <div class="modal-box" style="max-width:280px; text-align:center;">
+    <p style="font-size:22px;margin:0 0 6px;">🏆</p>
+    <p style="font-family:'Merriweather',serif;font-weight:700;font-size:15px;margin:0 0 6px;color:var(--text);">Goal met!</p>
+    <p id="rgMetText" style="font-size:12px;color:var(--muted);margin:0 0 18px;"></p>
+    <div class="modal-actions">
+      <button id="rgMetNo">No thanks</button>
+      <button id="rgMetYes" class="confirm-go">Set New Goal</button>
     </div>
   </div>
 </div>

@@ -141,6 +141,27 @@
     .session-goal-widget{position:fixed; top:calc(24px + 100px + 12px); right:24px; width:168px; margin:0; box-shadow:0 6px 20px rgba(0,0,0,.4); z-index:10; padding-bottom:12px;}
   }
 
+  /* Rare Fur Goals Widget — CSS fallback/initial position, stacked below the other two;
+     refreshWidgetStacking() in script.js repositions all three via inline styles once
+     the DOM is measured, so this is just where it sits before/without JS. */
+  .rare-goals-widget{border-color:var(--rare); padding:10px 14px; text-align:center;}
+  .rare-goals-widget .live-label{margin-bottom:6px;}
+  @media (min-width: 641px){
+    .rare-goals-widget{position:fixed; top:calc(24px + 100px + 12px + 90px + 12px); right:24px; width:168px; margin:0; box-shadow:0 6px 20px rgba(0,0,0,.4); z-index:10; padding-bottom:12px;}
+  }
+
+  /* Rare Fur Goals management panel (inside #rareGoalsModal) */
+  .rg-list{max-height:260px; overflow-y:auto; margin-top:4px;}
+  .rg-entry{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line);}
+  .rg-entry:last-child{border-bottom:none;}
+  .rg-entry-name{font-size:12.5px; color:var(--text); text-align:left; flex:1 1 auto; word-break:break-word;}
+  .rg-entry-controls{display:flex; align-items:center; gap:6px; flex:0 0 auto;}
+  .rg-entry-controls .ctrl-btn{width:26px; height:26px; font-size:14px;}
+  .rg-entry-count{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:44px; text-align:center;}
+  .rg-delete{background:none; border:none; cursor:pointer; font-size:13px; padding:2px 4px; opacity:0.6; transition:opacity .15s;}
+  .rg-delete:hover{opacity:1;}
+  #rgAddGoalStep.hidden{display:none;}
+
   .tabs{display:flex; align-items:stretch; gap:0; margin-bottom:22px; border-bottom:1px solid var(--line); flex-wrap:wrap; position:relative;}
   .tab-group{display:flex; flex-direction:column; align-items:flex-start;}
   .tab-group-label{font-size:9px; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); padding:0 4px 5px 4px; line-height:1; white-space:nowrap; opacity:0.7;}
@@ -779,6 +800,11 @@
     .session-goal-widget .sg-kills{font-size:15px;}
     .session-goal-widget .sg-goal{font-size:10px;}
     .session-goal-widget .sg-set-btn{font-size:9px; padding:4px 6px;}
+    /* Stacked below the session goal widget, same offset logic. */
+    .rare-goals-widget{position:fixed; top:calc(10px + 58px + 20px + 52px + 14px); right:10px; width:100px; margin:0; padding:6px 8px 8px;}
+    .rare-goals-widget .sg-kills{font-size:15px;}
+    .rare-goals-widget .sg-goal{font-size:10px;}
+    .rare-goals-widget .sg-set-btn{font-size:9px; padding:4px 6px;}
     .counters{flex-direction:column;}
     .counter-card, .counter-card.rare{flex:1 1 auto; width:100%;}
     .total-rare-row{flex-direction:column; flex:1 1 auto;}
