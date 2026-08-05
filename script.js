@@ -1722,39 +1722,58 @@
   }
   function setupDraggableWidget(el, storageKey){
     if(!el) return;
-    let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+    // Distinguishes an actual drag from a stationary click/tap. Previously every
+    // pointerdown immediately grabbed pointer capture and treated pointerup as "the
+    // widget was just moved," even for a plain click on an inner button — that both
+    // stole the click away from the button (capture retargets it to the widget) and
+    // re-triggered corner-stacking on every single tap, making widgets appear to jump
+    // around and their buttons appear unclickable. Now dragging only "engages" once the
+    // pointer has actually moved past DRAG_THRESHOLD; until then nothing is touched.
+    const DRAG_THRESHOLD = 4;
+    let dragging = false, moved = false, pointerId = null, startX = 0, startY = 0, startLeft = 0, startTop = 0;
 
     function onStart(e){
+      // Let clicks on the widget's own buttons/inputs/links behave completely
+      // normally — only pressing on the widget's background/label can start a drag.
+      if(e.target.closest('button, input, a')) return;
       const rect = el.getBoundingClientRect();
       startX = e.clientX; startY = e.clientY;
       startLeft = rect.left; startTop = rect.top;
-      el.style.left = startLeft + 'px';
-      el.style.top = startTop + 'px';
-      el.style.right = 'auto';
-      el.style.bottom = 'auto';
       dragging = true;
-      el.classList.add('widget-dragging');
-      try{ el.setPointerCapture(e.pointerId); }catch(err){}
+      moved = false;
+      pointerId = e.pointerId;
     }
     function onMove(e){
-      if(!dragging) return;
-      e.preventDefault();
+      if(!dragging || e.pointerId !== pointerId) return;
       const dx = e.clientX - startX, dy = e.clientY - startY;
+      if(!moved){
+        if(Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        moved = true;
+        el.style.left = startLeft + 'px';
+        el.style.top = startTop + 'px';
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        el.classList.add('widget-dragging');
+        try{ el.setPointerCapture(pointerId); }catch(err){}
+      }
+      e.preventDefault();
       const rect = el.getBoundingClientRect();
       const maxLeft = window.innerWidth - rect.width - 2;
       const maxTop = window.innerHeight - rect.height - 2;
       el.style.left = Math.max(2, Math.min(maxLeft, startLeft + dx)) + 'px';
       el.style.top = Math.max(2, Math.min(maxTop, startTop + dy)) + 'px';
     }
-    function onEnd(){
+    function onEnd(e){
       if(!dragging) return;
       dragging = false;
+      if(!moved) return; // stationary click/tap — leave position and stacking order alone
       el.classList.remove('widget-dragging');
+      try{ el.releasePointerCapture(pointerId); }catch(err){}
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
       const corner = (cy < window.innerHeight / 2 ? 't' : 'b') + (cx < window.innerWidth / 2 ? 'l' : 'r');
       applyWidgetCorner(el, corner);
-      try{ localStorage.setItem(storageKey, corner); }catch(e){}
+      try{ localStorage.setItem(storageKey, corner); }catch(e2){}
       refreshWidgetStacking(el.id);
     }
     el.addEventListener('pointerdown', onStart);
