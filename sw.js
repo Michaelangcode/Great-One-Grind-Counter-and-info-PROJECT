@@ -1,4 +1,4 @@
-const CACHE_NAME = 'grind-tracker-v59';
+const CACHE_NAME = 'grind-tracker-v79';
 const ASSETS = [
   './',
   './index.html',

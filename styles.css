@@ -15,37 +15,6 @@
     --radius:7px;
   }
 
-  .theme-light{
-    /* Background sits a touch lighter than before, but stays a shade below --panel/--panel2
-       (pure white) so cards/modals still read as distinct "windows" against the page. */
-    --bg:#f5f6f7; --bg2:#eef0f1; --panel:#ffffff; --panel2:#f7f7f8;
-    --line:#dcdde0; --text:#1a1a1a; --muted:#5f6368;
-    /* Accent colors derived directly from their dark-mode counterparts: same hue and
-       saturation as the dark-theme value, lightness reduced only as much as needed for
-       ~4.5:1 text contrast on white. So each one is recognizably "the same color" as its
-       dark-mode version, just calibrated for a light background instead of an arbitrary
-       separate pick. */
-    --diamond3:#258199; --diamond3-glow:rgba(37,129,153,.12);
-    --diamond2:#8b5ed7; --diamond2-glow:rgba(139,94,215,.12);
-    --antler:#92722c; --antler-glow:rgba(146,114,44,.12);
-    --weight:#637f4f; --weight-glow:rgba(99,127,79,.12);
-    --total:#3d5060;
-    --blaze:#cf4b17; --blaze-dim:#a63c12;
-    --danger:#c1483a;
-    --export-green:#448547; --export-green-dim:#346737;
-    --import-blue:#3a7abc; --import-blue-dim:#2f6399;
-  }
-
-  .theme-toggle-btn{
-    display:flex; align-items:center; gap:7px;
-    background:none; border:1px solid var(--line); border-radius:6px;
-    color:var(--muted); font-family:'Nunito',sans-serif; font-size:12px; font-weight:600;
-    padding:6px 12px; cursor:pointer; transition:border-color .15s, color .15s;
-    width:fit-content;
-  }
-  .theme-toggle-btn:hover{border-color:var(--blaze); color:var(--text);}
-  .theme-toggle-icon{font-size:14px; line-height:1;}
-
   *{box-sizing:border-box;}
   body{margin:0;}
 
@@ -120,7 +89,7 @@
   .sg-sep{font-size:14px; color:var(--muted);}
   .sg-goal{font-size:14px; color:var(--muted); font-variant-numeric:tabular-nums;}
   .sg-done-btn{background:none; border:none; cursor:pointer; font-size:17px; margin-left:5px; padding:0; line-height:1; animation:sgPulse 1s ease-in-out infinite;}
-  .sg-edit-btn{background:none; border:none; cursor:pointer; font-size:13px; margin-left:4px; padding:0 2px; line-height:1; color:var(--muted); opacity:0.6; transition:opacity .15s,color .15s;}
+  .sg-edit-btn{background:none; border:none; cursor:pointer; font-size:17px; margin-left:4px; padding:2px 4px; line-height:1; color:var(--muted); opacity:0.6; transition:opacity .15s,color .15s;}
   .sg-edit-btn:hover{opacity:1; color:var(--diamond3);}
   @keyframes sgPulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.25)} }
   .sg-bar-wrap{background:var(--line); border-radius:4px; height:6px; overflow:hidden; margin-top:4px;}
@@ -146,21 +115,62 @@
      the DOM is measured, so this is just where it sits before/without JS. */
   .rare-goals-widget{border-color:var(--rare); padding:10px 14px; text-align:center;}
   .rare-goals-widget .live-label{margin-bottom:6px;}
+  .rare-goals-widget-desc{font-size:10px; color:var(--muted); margin:0 0 9px; line-height:1.4;}
+  .rare-goals-create-btn{background:none; border:1px solid var(--rare); border-radius:5px; color:var(--muted); font-size:11px; padding:5px 10px; cursor:pointer; transition:border-color .15s,color .15s;}
+  .rare-goals-create-btn:hover{color:var(--rare);}
   @media (min-width: 641px){
     .rare-goals-widget{position:fixed; top:calc(24px + 100px + 12px + 90px + 12px); right:24px; width:168px; margin:0; box-shadow:0 6px 20px rgba(0,0,0,.4); z-index:10; padding-bottom:12px;}
   }
 
-  /* Rare Fur Goals management panel (inside #rareGoalsModal) */
-  .rg-list{max-height:260px; overflow-y:auto; margin-top:4px;}
-  .rg-entry{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line);}
+  /* Rare Fur Trackers create/edit panel (inside #rareGoalsModal) */
+  .rg-list{max-height:320px; overflow-y:auto; margin:4px 0 2px;}
+  .rg-entry{padding:9px 4px; border-bottom:1px solid var(--line); text-align:left;}
   .rg-entry:last-child{border-bottom:none;}
-  .rg-entry-name{font-size:12.5px; color:var(--text); text-align:left; flex:1 1 auto; word-break:break-word;}
-  .rg-entry-controls{display:flex; align-items:center; gap:6px; flex:0 0 auto;}
-  .rg-entry-controls .ctrl-btn{width:26px; height:26px; font-size:14px;}
-  .rg-entry-count{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:44px; text-align:center;}
-  .rg-delete{background:none; border:none; cursor:pointer; font-size:13px; padding:2px 4px; opacity:0.6; transition:opacity .15s;}
-  .rg-delete:hover{opacity:1;}
-  #rgAddGoalStep.hidden{display:none;}
+  .rg-entry-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .rg-entry-name{font-size:12.5px; font-weight:700; color:var(--text); word-break:break-word;}
+  .rg-entry-count-row{font-size:11.5px; color:var(--muted); margin:3px 0 6px;}
+  .rg-entry-count-row strong{color:var(--text);}
+  .rg-delete{display:inline-flex; align-items:center; justify-content:center; background:none; border:none; cursor:pointer; padding:3px; color:var(--muted); opacity:0.7; transition:opacity .15s,color .15s; flex:0 0 auto;}
+  .rg-delete:hover{opacity:1; color:var(--danger);}
+  .rg-add-goal-btn{background:none; border:1px dashed var(--muted); border-radius:5px; color:var(--muted); font-size:11px; padding:4px 9px; cursor:pointer; transition:border-color .15s,color .15s;}
+  .rg-add-goal-btn:hover{border-color:var(--rare); color:var(--rare);}
+  .rg-goal-row{display:flex; align-items:center; gap:6px; margin-bottom:4px;}
+  .rg-goal-label{font-size:11.5px; color:var(--muted);}
+  .rg-goal-check{color:var(--export-green); font-weight:800; font-size:13px;}
+  .rg-goal-edit, .rg-goal-remove{background:none; border:none; cursor:pointer; padding:0 2px; line-height:1; color:var(--muted); opacity:0.7; transition:opacity .15s,color .15s; font-size:12px;}
+  .rg-goal-edit:hover, .rg-goal-remove:hover{opacity:1; color:var(--rare);}
+  .rg-goal-remove{font-size:15px;}
+  .rg-goal-input-row{display:flex; gap:6px; align-items:center; margin-top:6px;}
+  .rg-goal-input-row.hidden{display:none;}
+  .rg-goal-input-row input{width:64px; padding:4px 6px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:12px; text-align:center;}
+  .rg-goal-input-row button{background:none; border:1px solid var(--line); border-radius:5px; color:var(--text); font-size:11px; padding:4px 8px; cursor:pointer;}
+
+  /* Rare fur floating counter widgets — one per tracker, locked underneath the main
+     Rare Fur Trackers widget. Reuses .live-stat for the base card look but condensed,
+     with no keyboard-sync footer or subtext, matching a simplified counter card. */
+  /* Same top-color-bar treatment as the main tool's counter cards (.counter-card::before)
+     instead of a full colored outline. */
+  .rare-fur-item-widget{position:fixed; z-index:10; padding:10px 12px 8px; display:flex; flex-direction:column; gap:5px; border-color:var(--line); cursor:grab;}
+  .rare-fur-item-widget::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:8px 8px 0 0; background:var(--rare);}
+  .rare-fur-item-widget.widget-dragging{cursor:grabbing; opacity:0.9; box-shadow:0 8px 24px rgba(0,0,0,.7); transition:none;}
+  .rf-item-top{display:flex; align-items:center; justify-content:space-between; gap:6px;}
+  .rf-item-name{font-size:11px; font-weight:700; color:var(--text); text-align:left; word-break:break-word;}
+  .rf-collapse-btn{background:none; border:none; cursor:pointer; padding:2px 4px; line-height:1; color:var(--muted); opacity:0.8; font-size:15px; transition:opacity .15s,color .15s; flex:0 0 auto;}
+  .rf-collapse-btn:hover{opacity:1; color:var(--rare);}
+  .rf-item-controls{display:flex; align-items:center; justify-content:center; gap:8px;}
+  .rf-item-controls .ctrl-btn{width:26px; height:26px; font-size:15px;}
+  .rf-item-count{font-size:18px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; min-width:22px; text-align:center;}
+  .rare-fur-item-widget.rf-collapsed{padding-bottom:10px; gap:0;}
+
+  /* Combined goal-progress floating widget — reuses the same bar/%/checkmark format as
+     each row's goal section in the edit panel. */
+  .rare-goals-progress-widget{position:fixed; z-index:10; padding:10px 12px; border-color:var(--line); text-align:center;}
+  .rare-goals-progress-widget::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:8px 8px 0 0; background:var(--rare);}
+  .rgp-edit-btn{position:absolute; top:6px; right:8px; background:none; border:none; cursor:pointer; padding:2px 4px; line-height:1; color:var(--muted); opacity:0.75; font-size:19px; transition:opacity .15s,color .15s;}
+  .rgp-edit-btn:hover{opacity:1; color:var(--rare);}
+  .rg-progress-list{display:flex; flex-direction:column; gap:10px; margin-top:4px;}
+  .rg-progress-row{text-align:left;}
+  .rg-progress-row .rg-goal-row{margin-bottom:3px;}
 
   .tabs{display:flex; align-items:stretch; gap:0; margin-bottom:22px; border-bottom:1px solid var(--line); flex-wrap:wrap; position:relative;}
   .tab-group{display:flex; flex-direction:column; align-items:flex-start;}
@@ -325,18 +335,21 @@
   .breakdown[data-tip]:hover::after{ display:block; }
   .breakdown{ cursor:default; position:relative; }
 
-  /* Instant, themed hint tooltip for toggle switches (Click/Ding, Rare Fur) — CSS-only so it
-     appears immediately on hover instead of waiting on the browser's native title-tooltip delay. */
-  .rare-switch[data-hint]::after,
-  .toggle-switch[data-hint]::after{
+  /* Delayed, themed hint tooltip for the floating widgets — CSS-only, only appears after
+     hovering for a bit (unlike a normal CSS :hover popup) so it doesn't flash during quick
+     clicks or drags, then points you to Settings for more options on that widget.
+     All floating widgets share the same z-index, so without this, a neighboring widget
+     (later in DOM order) can paint over a hovered widget's tooltip. Bumping the hovered
+     widget's own z-index lifts it (and its tooltip) above its siblings while shown. */
+  .live-stat[data-hint]:hover{ z-index:250; }
+  .live-stat[data-hint]::after{
     content:attr(data-hint);
-    display:none;
     position:absolute;
-    bottom:calc(100% + 8px);
+    top:calc(100% + 8px);
     left:50%;
     transform:translateX(-50%);
-    min-width:160px;
-    max-width:210px;
+    min-width:170px;
+    max-width:220px;
     background:var(--panel2);
     border:0.5px solid rgba(255,255,255,.55);
     border-radius:6px;
@@ -350,9 +363,15 @@
     z-index:200;
     pointer-events:none;
     box-shadow:0 4px 14px rgba(0,0,0,.5);
+    opacity:0;
+    visibility:hidden;
+    transition:opacity .15s ease, visibility 0s linear .15s;
   }
-  .rare-switch[data-hint]:hover::after,
-  .toggle-switch[data-hint]:hover::after{ display:block; }
+  .live-stat[data-hint]:hover::after{
+    opacity:1;
+    visibility:visible;
+    transition:opacity .15s ease .7s, visibility 0s linear .7s;
+  }
   .card-icon{flex:0 0 auto; opacity:.9;}
   .card-label{font-family:'Merriweather', serif; font-size:12px; font-weight:700; white-space:nowrap;}
   .card-label-lvl{font-size:10px; font-weight:600;}
@@ -711,43 +730,6 @@
   .compare-pan-viewport{overflow:hidden; border-radius:8px; border:1px solid var(--line); background:var(--panel2); cursor:grab; user-select:none; padding:6px 0; touch-action:none; display:flex; align-items:center; justify-content:center;}
   .compare-pan-inner{will-change:transform; display:inline-block;}
 
-  /* ── Light theme overrides ── */
-  .theme-light .app{
-    background:
-      radial-gradient(ellipse 600px 300px at 10% -10%, var(--diamond3-glow), transparent 60%),
-      radial-gradient(ellipse 500px 280px at 35% -5%, var(--diamond2-glow), transparent 60%),
-      radial-gradient(ellipse 600px 300px at 65% 0%, var(--antler-glow), transparent 60%),
-      radial-gradient(ellipse 700px 400px at 110% 30%, var(--weight-glow), transparent 60%),
-      linear-gradient(165deg, var(--bg), var(--bg2));
-  }
-  .theme-light input[type=text],
-  .theme-light input[type=number],
-  .theme-light select,
-  .theme-light textarea{
-    background:var(--panel2); color:var(--text); border-color:var(--line);
-  }
-  .theme-light .tab-btn{color:var(--muted);}
-  .theme-light .tab-btn.active{color:var(--text); border-bottom-color:var(--blaze);}
-  .theme-light .panel{background:var(--panel); border-color:var(--line);}
-  .theme-light .masthead{border-color:var(--line);}
-  .theme-light .counter-block,
-  .theme-light .go-log-card,
-  .theme-light .open-grind-card,
-  .theme-light .stat-card{background:var(--panel); border-color:var(--line);}
-  .theme-light .secondary-btn{background:var(--panel2); color:var(--text); border-color:var(--line);}
-  .theme-light .secondary-btn:hover{background:var(--line);}
-  .theme-light .kb-footer .kb-sync-btn,
-  .theme-light .kb-footer .kb-undo-btn{background:var(--panel2); color:var(--text); border-color:var(--line);}
-  .theme-light .empty-note{color:var(--muted);}
-  .theme-light .modal-overlay{background:rgba(0,0,0,.35);}
-  .theme-light .modal-box{background:var(--panel); border-color:var(--line);}
-  .theme-light .breakdown[data-tip]::after{
-    background:#fff;
-    border-color:#ccc;
-    color:#111;
-    box-shadow:0 4px 14px rgba(0,0,0,.15);
-  }
-
   /* ══════════════ Responsive: Tablet & Mobile ══════════════ */
   /* Tablet (~641px–1024px, e.g. iPad): bigger tap targets & type, desktop-like layout kept.
      Also matches any touch-primary device regardless of width (pointer:coarse) — otherwise
@@ -767,7 +749,7 @@
     .go-btn{padding:17px;}
     .compare-zoom-btn{padding:7px 16px; font-size:16px;}
     .sg-done-btn{font-size:20px;}
-    .sg-edit-btn{font-size:15px; padding:2px 4px;}
+    .sg-edit-btn{font-size:19px; padding:3px 5px;}
     .wizard-option-btn{padding:13px 15px; font-size:14px;}
     .wizard-custom-edit, .wizard-custom-delete{padding:0 12px; font-size:15px;}
     .count-display{font-size:32px;}
@@ -802,9 +784,8 @@
     .session-goal-widget .sg-set-btn{font-size:9px; padding:4px 6px;}
     /* Stacked below the session goal widget, same offset logic. */
     .rare-goals-widget{position:fixed; top:calc(10px + 58px + 20px + 52px + 14px); right:10px; width:100px; margin:0; padding:6px 8px 8px;}
-    .rare-goals-widget .sg-kills{font-size:15px;}
-    .rare-goals-widget .sg-goal{font-size:10px;}
-    .rare-goals-widget .sg-set-btn{font-size:9px; padding:4px 6px;}
+    .rare-goals-widget-desc{font-size:8px;}
+    .rare-goals-create-btn{font-size:9px; padding:4px 6px;}
     .counters{flex-direction:column;}
     .counter-card, .counter-card.rare{flex:1 1 auto; width:100%;}
     .total-rare-row{flex-direction:column; flex:1 1 auto;}
@@ -872,7 +853,6 @@
        when buttons just size to their own text width. */
     .about-feedback-btns .share-btn{flex:1 1 calc(50% - 5px); box-sizing:border-box; text-align:center;}
     .share-btn, .go-share-btn, .go-download-btn, .go-edit-counter-btn, .go-revert-btn, .go-log-delete-btn, .kofi-btn{padding:10px 16px; font-size:13.5px;}
-    .theme-toggle-btn{padding:8px 14px; font-size:13px;}
     .del-two-step-label input[type="checkbox"]{width:18px; height:18px;}
     .modal{padding:12px;}
   }

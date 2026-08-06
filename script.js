@@ -15,9 +15,10 @@
   const DATA_KEY = 'goGrind:data';
   const KEYBIND_KEY = 'goGrind:keybinds';
   const SETTINGS_KEY = 'goGrind:settings';
-  // Rare Fur Goals: a fully independent tracker (species+platform scoped) for planning
-  // named rares a player wants — deliberately separate from the main Rare Fur counter
-  // and doesn't feed All Grinds Summary stats. See rareGoalsKeyFor().
+  // Rare Fur Trackers: a fully independent tracker (species+platform scoped) for
+  // counting named rares a player wants — deliberately separate from the main Rare Fur
+  // counter and doesn't feed All Grinds Summary stats. See rareGoalsKeyFor(). A goal is
+  // optional per tracker; trackers exist purely to count until a goal is added.
   const RARE_GOALS_KEY = 'goGrind:rareGoals';
   const SAVE_DEBOUNCE_MS = 700;
   const NON_GO = 'Non-Great One Grind';
@@ -82,17 +83,20 @@
   let keybinds = {}; // { target: key }
   let twoStepDelete = false; // true = delete after 1 confirm only; false (default) = 2 confirms
   let buzzDefaultOn = false; // default state for new grinds' hotkey buzz feedback
-  let rareDefaultOn = false; // default state for new grinds' rare fur tracking
+  let rareDefaultOn = false; // default state for new grinds' Rare Fur Counter toggle (not the separate Rare Fur Trackers widgets)
   let hotkeySound = 'click'; // which synthesized sound plays on hotkey use: ding | click | thock | pop | blip
-  let themeLight = false; // persisted light/dark theme choice
+  // Independent Current Grind floating-widget visibility toggles (Settings tab). Hiding
+  // one only affects display — its data keeps counting/saving in the background and
+  // picks back up normally the moment it's turned back on.
+  let showLiveStatWidget = true;
+  let showSessionGoalWidget = true;
+  let showRareTrackerWidgets = true;
   let sessionGoal = null;       // { goal: number, killsAtStart: number } — resets on grind switch/end/GO log
   let sessionGoalDone = false;  // true when goal reached, show !
-  // { "<speciesLabel>|<platform>": [ {name, goal, count, metShown}, ... ] } — see rareGoalsKeyFor()
+  // { "<speciesLabel>|<platform>": { entries: [ {id, name, count, goal(nullable)}, ... ], allCelebrated } }
+  // — see rareGoalsKeyFor() and normalizeRareGoalsBucket()
   let rareGoals = {};
-  let rareGoalsPanelGrind = null; // grind context the Rare Fur Goals panel is currently open for
-  let rareGoalsPendingName = null; // name typed in the panel, awaiting its goal number
-  let rareGoalsPanelSnapshot = null; // deep copy of this key's entries at panel-open time, for "Revert Changes"
-  let rareGoalsMetPendingIdx = null; // index of the entry whose goal-met modal is currently showing
+  let rareGoalsPanelGrind = null; // grind context the Rare Fur Tracker panel is currently open for
 
   const VALID_HOTKEY_SOUNDS = ['ding', 'click', 'thock', 'pop', 'blip'];
   function loadSettings(){
@@ -100,15 +104,20 @@
       const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}');
       twoStepDelete = s.twoStepDelete === true;
       buzzDefaultOn = s.buzzDefaultOn === true;
-      // Rare Fur tracking defaults ON for brand-new installs (no settings ever saved yet).
+      // Rare Fur Counter defaults ON for brand-new installs (no settings ever saved yet).
       // Anyone who already has a saved preference (including an explicit off) keeps it.
       rareDefaultOn = s.rareDefaultOn === undefined ? true : s.rareDefaultOn === true;
       hotkeySound = VALID_HOTKEY_SOUNDS.includes(s.hotkeySound) ? s.hotkeySound : 'click';
-      themeLight = s.themeLight === true;
-    }catch(e){ twoStepDelete = false; buzzDefaultOn = false; rareDefaultOn = true; hotkeySound = 'click'; themeLight = false; }
+      showLiveStatWidget = s.showLiveStatWidget === undefined ? true : s.showLiveStatWidget === true;
+      showSessionGoalWidget = s.showSessionGoalWidget === undefined ? true : s.showSessionGoalWidget === true;
+      showRareTrackerWidgets = s.showRareTrackerWidgets === undefined ? true : s.showRareTrackerWidgets === true;
+    }catch(e){
+      twoStepDelete = false; buzzDefaultOn = false; rareDefaultOn = true; hotkeySound = 'click';
+      showLiveStatWidget = true; showSessionGoalWidget = true; showRareTrackerWidgets = true;
+    }
   }
   function saveSettings(){
-    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify({ twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound, themeLight })); }catch(e){}
+    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify({ twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound, showLiveStatWidget, showSessionGoalWidget, showRareTrackerWidgets })); }catch(e){}
   }
   function loadCustomDefaults(){
     try{
@@ -185,6 +194,7 @@
   const totalIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>`;
   const rareIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>`;
   const trollIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8L11 2L9 7L12 10L9 14L11 19Z"/><path d="M13 4L19 10L13 21L11 16L14 12L11 9Z"/><path d="M8 19l3 1-1 3-3-1z"/></svg>`;
+  const trashIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M10 11v6M14 11v6"/></svg>`;
 
   function totalDiamond(c){ return (c.diamondLvl3||0) + (c.diamondLvl2||0); }
   // "Max-Level" as a combined stat (Diamond + Trolls) has been removed entirely — it
@@ -303,7 +313,10 @@
       newGrinds.push(openG);
       newActiveId = openG.id;
     }
-    return { grinds:newGrinds, activeGrindId:newActiveId };
+    // Run through normalizeGrind so these hand-built legacy objects end up with every
+    // field a modern grind has (rareTracking, buzzEnabled, counterMode, etc.) instead of
+    // silently missing them — same safety net every other import/load path already gets.
+    return { grinds:newGrinds.map(normalizeGrind), activeGrindId:newActiveId };
   }
 
   function setSyncStatus(state){
@@ -374,6 +387,7 @@
     browsingOpenGrinds = false;
     markDirty();
     renderCurrentPanel();
+    restoreWidgetLayoutForActiveGrind();
     renderStats(); renderChart(); renderLiveStat();
     switchTab('current');
     saveNow();
@@ -440,6 +454,7 @@
         markDirty();
         await saveNow();
         renderCurrentPanel();
+        restoreWidgetLayoutForActiveGrind();
         renderStats(); renderChart(); renderGoLog(); renderLiveStat();
         switchTab('current');
       }
@@ -878,7 +893,7 @@
             ${keybindFooter('other', 'Total Kills')}
           </div>
           <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="ic-${grindId}-rareCard">
-            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="ic-${grindId}-rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" data-hint="More advanced settings in the &quot;Settings&quot; section!" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
+            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="ic-${grindId}-rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
             <div class="card-sub">this grind</div>
             <div class="counter-controls">
               <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
@@ -1236,6 +1251,7 @@
     markDirty();
     await saveNow();
     renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
+    syncLinkedTogglesToActive();
   }
 
   function showInfo(title, message, onOk){
@@ -1675,6 +1691,65 @@
   // there's no fixed "always on top/bottom" widget, ordering is purely recency of move.
   const FLOATING_WIDGET_IDS = ['liveStatWidget', 'sessionGoalWidget', 'rareGoalsWidget'];
   const WIDGET_ORDER_KEY = 'floatingWidgetOrder';
+  // The id of whichever floating widget is currently being actively dragged (between the
+  // drag crossing DRAG_THRESHOLD and the pointer being released), or null. Counter changes
+  // — including the held-down +/- repeat, which fires every 80ms — call renderLiveStat(),
+  // which always re-runs refreshWidgetStacking() to keep the widgets in sync. If that
+  // happened while a widget was mid-drag, it would snap the widget back to its old saved
+  // corner on every one of those renders, fighting the live drag and leaving it stranded
+  // wherever the last snap-back vs. pointer-move happened to land — this is what tracks
+  // and skips that widget so a drag in progress is never fought by an unrelated re-render.
+  let draggingWidgetId = null;
+  // Same idea as draggingWidgetId, but for an individual rare-fur counter widget mid
+  // reorder-drag (see setupFurWidgetReorderDrag) — layoutRareFurItemWidgets() falls back to
+  // this when called with no explicit excludeEl, so an unrelated re-render can't snap a
+  // fur widget out from under an in-progress reorder drag either.
+  let draggingFurWidgetEl = null;
+  // True for the widget currently being dragged AND its paired widget (see
+  // PAIRED_WIDGET_IDS below) — since a paired widget is being live-repositioned by
+  // followPairedWidgetDuringDrag rather than by its saved corner, it needs the same
+  // protection from unrelated re-renders as the widget actually under the pointer.
+  function isDragLocked(id){
+    return id === draggingWidgetId || id === PAIRED_WIDGET_IDS[draggingWidgetId];
+  }
+  // Avg Kills/Diamond and Session Goal are locked together — dragging either one carries
+  // the other along to the same corner, so the pair always moves and stacks as a unit
+  // instead of being positioned independently (Rare Fur Trackers stays its own thing).
+  const PAIRED_WIDGET_IDS = { liveStatWidget: 'sessionGoalWidget', sessionGoalWidget: 'liveStatWidget' };
+  // Pulls draggedId's paired widget (if it has one) to the same corner and persists it —
+  // called after a drag ends, and defensively when restoring a grind's saved layout in case
+  // older/imported data has the pair saved at two different corners.
+  function syncPairedWidget(draggedId, corner){
+    const pairId = PAIRED_WIDGET_IDS[draggedId];
+    if(!pairId || pairId === draggingWidgetId) return; // never fight a drag in progress
+    const pairEl = document.getElementById(pairId);
+    if(!pairEl) return;
+    applyWidgetCorner(pairEl, corner);
+    const g = getActiveGrind();
+    if(g){
+      const key = rareGoalsKeyFor(g);
+      if(!widgetLayout[key]) widgetLayout[key] = {};
+      widgetLayout[key][pairId] = corner;
+      saveWidgetLayout();
+    }
+  }
+  // While Avg Kills/Diamond or Session Goal is being actively dragged, trail its paired
+  // widget directly below it at the live position — same idea as followMainWidgetDuringDrag
+  // for the Rare Fur Trackers group. Final stacking order is resolved on drop via
+  // refreshWidgetStacking, same as that group.
+  function followPairedWidgetDuringDrag(){
+    const pairId = PAIRED_WIDGET_IDS[draggingWidgetId];
+    if(!pairId) return;
+    const draggedEl = document.getElementById(draggingWidgetId);
+    const pairEl = document.getElementById(pairId);
+    if(!draggedEl || !pairEl) return;
+    const rect = draggedEl.getBoundingClientRect();
+    pairEl.style.left = rect.left + 'px';
+    pairEl.style.right = 'auto';
+    pairEl.style.top = (rect.bottom + 10) + 'px';
+    pairEl.style.bottom = 'auto';
+    pairEl.style.width = rect.width + 'px';
+  }
   function applyWidgetCorner(el, corner, extraOffset){
     const margin = 10, off = extraOffset || 0;
     el.style.left = el.style.right = el.style.top = el.style.bottom = 'auto';
@@ -1683,6 +1758,116 @@
     else if(corner === 'bl'){ el.style.bottom = (margin + off) + 'px'; el.style.left = margin + 'px'; }
     else { el.style.bottom = (margin + off) + 'px'; el.style.right = margin + 'px'; }
     el.dataset.corner = corner;
+    // Remember the TRUE, stable distance from the real screen edge this widget was
+    // assigned — as opposed to wherever it may currently be rendered. layoutRareFurItemWidgets
+    // reads this instead of the widget's live getBoundingClientRect() so that repositioning
+    // the rare-fur satellite stack never chains off a position the satellite-layout logic
+    // itself already shifted on a previous call (which was causing cumulative drift and,
+    // eventually, the whole group rendering in reversed/off-screen order).
+    el.dataset.anchorOffset = String(off);
+  }
+  // The Rare Fur Trackers group must always dock to a top corner (see setupDraggableWidget) —
+  // this exists so a corner saved before that rule existed, or restored from an older export,
+  // still gets pulled up to the nearest top corner instead of silently breaking the group's
+  // (top-corner-only) stacking logic.
+  function clampCornerForWidget(id, corner){
+    if(id === 'rareGoalsWidget' && corner && corner.charAt(0) !== 't') return 't' + corner.charAt(1);
+    return corner;
+  }
+  // Each floating widget's corner is remembered per species+platform combo (same "sticky
+  // per combo" idea as Rare Fur Trackers data itself — see rareGoalsKeyFor()), so switching
+  // between grinds, reverting a logged Great One back to open, or starting a fresh grind for
+  // a combo you've arranged before all bring back that combo's own widget layout instead of
+  // one single global arrangement bleeding across every grind.
+  const WIDGET_LAYOUT_KEY = 'goGrind:widgetLayout';
+  const WIDGET_LAYOUT_DEFAULTS = { liveStatWidget: 'tl', sessionGoalWidget: 'tl', rareGoalsWidget: 'tr' };
+  let widgetLayout = {};
+  function loadWidgetLayout(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(WIDGET_LAYOUT_KEY) || '{}');
+      widgetLayout = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+    }catch(e){ widgetLayout = {}; }
+  }
+  function saveWidgetLayout(){
+    try{ localStorage.setItem(WIDGET_LAYOUT_KEY, JSON.stringify(widgetLayout)); }catch(e){}
+  }
+  // Applies whichever corner was last saved for the active grind's species+platform combo,
+  // falling back to the app defaults (Rare Fur Trackers top-right; Avg Kills/Diamond and
+  // Session Goal top-left) the first time a given combo is seen. Safe to call with no active
+  // grind — widgets just get positioned at their defaults while hidden.
+  function restoreWidgetLayoutForActiveGrind(){
+    const g = getActiveGrind();
+    const key = g ? rareGoalsKeyFor(g) : null;
+    const saved = (key && widgetLayout[key]) || {};
+    FLOATING_WIDGET_IDS.forEach(id => {
+      if(isDragLocked(id)) return; // never fight a drag in progress
+      const el = document.getElementById(id);
+      if(!el) return;
+      const corner = clampCornerForWidget(id, saved[id] || WIDGET_LAYOUT_DEFAULTS[id] || 'tr');
+      applyWidgetCorner(el, corner);
+    });
+    // Enforce the Avg Kills/Diamond + Session Goal pairing even if saved/imported data has
+    // them at two different corners — Avg Kills/Diamond wins as the source of truth. Skipped
+    // entirely (rather than just relying on syncPairedWidget's own internal guard) whenever
+    // either half of the pair is mid-drag, since even reading a stale dataset.corner here
+    // could otherwise queue up a reposition that fights the live follow.
+    if(!isDragLocked('liveStatWidget')){
+      const liveEl = document.getElementById('liveStatWidget');
+      if(liveEl && liveEl.dataset.corner) syncPairedWidget('liveStatWidget', liveEl.dataset.corner);
+    }
+    avoidRareWidgetCollision();
+    refreshWidgetStacking();
+  }
+  // Rare Fur Trackers and the (locked-together) Avg Kills/Diamond + Session Goal pair are
+  // never allowed to share a SIDE of the screen (regardless of top/bottom row — e.g. rare
+  // at 'tr' and Session Goal at 'br' both being on the right still counts). Whichever one
+  // was just dragged (movedId) wins its new side; the other gets bumped to the mirrored
+  // side instead — same row it was already in for the pair, since Rare Fur Trackers is
+  // locked to a top corner, it just swaps between 'tl'/'tr'. With no movedId (e.g. when
+  // restoring a grind's saved layout, where there's no specific "who just moved"), Rare Fur
+  // Trackers is treated as the fixed reference and the pair is bumped, matching the
+  // long-standing default. Safe to call anytime; a no-op when nothing actually collides.
+  function avoidRareWidgetCollision(movedId){
+    const rareEl = document.getElementById('rareGoalsWidget');
+    if(!rareEl) return;
+    const rareCorner = rareEl.dataset.corner;
+    if(!rareCorner) return;
+    const rareSide = rareCorner.charAt(1); // 'l' or 'r'
+    const g = getActiveGrind();
+    const key = g ? rareGoalsKeyFor(g) : null;
+
+    if(movedId === 'liveStatWidget' || movedId === 'sessionGoalWidget'){
+      // The pair just moved — if that landed it on Rare Fur Trackers' side, bump Rare Fur
+      // Trackers to the other top corner instead of bouncing the pair right back out.
+      if(isDragLocked('rareGoalsWidget')) return; // never fight a drag in progress
+      const movedEl = document.getElementById(movedId);
+      if(!movedEl || !movedEl.dataset.corner || movedEl.dataset.corner.charAt(1) !== rareSide) return;
+      const mirror = 't' + (rareSide === 'l' ? 'r' : 'l');
+      applyWidgetCorner(rareEl, mirror);
+      if(key){
+        if(!widgetLayout[key]) widgetLayout[key] = {};
+        widgetLayout[key].rareGoalsWidget = mirror;
+        saveWidgetLayout();
+      }
+      return;
+    }
+
+    // Rare Fur Trackers just moved (or this is a general/defensive call) — bump the pair
+    // off Rare Fur Trackers' side.
+    let moved = false;
+    ['liveStatWidget', 'sessionGoalWidget'].forEach(id => {
+      if(isDragLocked(id)) return; // never fight a drag in progress
+      const el = document.getElementById(id);
+      if(!el || !el.dataset.corner || el.dataset.corner.charAt(1) !== rareSide) return;
+      const mirror = el.dataset.corner.charAt(0) + (rareSide === 'l' ? 'r' : 'l');
+      applyWidgetCorner(el, mirror);
+      moved = true;
+      if(key){
+        if(!widgetLayout[key]) widgetLayout[key] = {};
+        widgetLayout[key][id] = mirror;
+      }
+    });
+    if(moved && key) saveWidgetLayout();
   }
   // Re-lays out every visible, corner-assigned widget. Widgets in different corners each
   // just sit at their own base position. Widgets sharing a corner stack outward from that
@@ -1692,9 +1877,14 @@
   function refreshWidgetStacking(justMovedId){
     const els = {};
     FLOATING_WIDGET_IDS.forEach(id => { els[id] = document.getElementById(id); });
-    const visible = FLOATING_WIDGET_IDS.filter(id =>
-      els[id] && els[id].dataset.corner && els[id].style.display !== 'none'
-    );
+    const visible = FLOATING_WIDGET_IDS.filter(id => els[id] && els[id].style.display !== 'none');
+    // Any visible widget missing a corner (e.g. its own render ran before
+    // restoreWidgetLayoutForActiveGrind had a chance to set one) used to just get silently
+    // skipped here, left sitting at whatever position the static CSS fallback put it —
+    // which doesn't account for the other widgets' real heights and could land right on
+    // top of them, making widgets appear "stuck" behind each other. Defaulting it to 'tr'
+    // guarantees every visible widget always gets a real, stacking-aware position below.
+    visible.forEach(id => { if(!els[id].dataset.corner) els[id].dataset.corner = 'tr'; });
     if(visible.length === 0) return;
 
     let order;
@@ -1712,15 +1902,32 @@
       (byCorner[c] = byCorner[c] || []).push(id);
     });
     Object.keys(byCorner).forEach(corner => {
-      const group = byCorner[corner].slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      // Top corners: the first widget in the sorted group sits flush at the corner margin
+      // and therefore ends up visually highest on screen. Bottom corners: it's the reverse
+      // — the first widget sits flush at the true bottom margin, so it's the LAST widget in
+      // the group that ends up visually highest. stackDown tracks which of those applies.
+      const stackDown = corner.charAt(0) === 't';
+      const group = byCorner[corner].slice().sort((a, b) => {
+        // Avg Kills/Diamond always renders above Session Goal within their shared corner
+        // stack, regardless of which was dragged more recently.
+        if(a === 'liveStatWidget' && b === 'sessionGoalWidget') return stackDown ? -1 : 1;
+        if(a === 'sessionGoalWidget' && b === 'liveStatWidget') return stackDown ? 1 : -1;
+        return order.indexOf(a) - order.indexOf(b);
+      });
       let offset = 0;
       group.forEach(id => {
-        applyWidgetCorner(els[id], corner, offset);
+        // Never fight a drag in progress — repositioning the widget the user is currently
+        // holding (or its paired widget, being live-followed) would snap it out from under
+        // the pointer (see isDragLocked).
+        if(!isDragLocked(id)) applyWidgetCorner(els[id], corner, offset);
         offset += els[id].getBoundingClientRect().height + 10;
       });
     });
+    // Keep the per-fur tracker widgets locked underneath wherever the main Rare Fur
+    // Trackers widget just landed.
+    layoutRareFurItemWidgets();
   }
-  function setupDraggableWidget(el, storageKey){
+  function setupDraggableWidget(el, onDragMove){
     if(!el) return;
     // Distinguishes an actual drag from a stationary click/tap. Previously every
     // pointerdown immediately grabbed pointer capture and treated pointerup as "the
@@ -1742,6 +1949,15 @@
       dragging = true;
       moved = false;
       pointerId = e.pointerId;
+      // Listen on the document rather than only the widget itself for the rest of this
+      // drag. setPointerCapture (below) is supposed to make element-scoped listeners keep
+      // firing even once the cursor moves off the widget mid-drag, but that's proven
+      // unreliable in practice — the widget would stop following and only resume once the
+      // cursor happened to land back over its (stale) current position. Document-level
+      // listeners guarantee delivery no matter where the pointer physically is.
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onEnd);
+      document.addEventListener('pointercancel', onEnd);
     }
     function onMove(e){
       if(!dragging || e.pointerId !== pointerId) return;
@@ -1749,6 +1965,7 @@
       if(!moved){
         if(Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
         moved = true;
+        draggingWidgetId = el.id;
         el.style.left = startLeft + 'px';
         el.style.top = startTop + 'px';
         el.style.right = 'auto';
@@ -1762,8 +1979,12 @@
       const maxTop = window.innerHeight - rect.height - 2;
       el.style.left = Math.max(2, Math.min(maxLeft, startLeft + dx)) + 'px';
       el.style.top = Math.max(2, Math.min(maxTop, startTop + dy)) + 'px';
+      if(onDragMove) onDragMove();
     }
     function onEnd(e){
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onEnd);
+      document.removeEventListener('pointercancel', onEnd);
       if(!dragging) return;
       dragging = false;
       if(!moved) return; // stationary click/tap — leave position and stacking order alone
@@ -1771,24 +1992,36 @@
       try{ el.releasePointerCapture(pointerId); }catch(err){}
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-      const corner = (cy < window.innerHeight / 2 ? 't' : 'b') + (cx < window.innerWidth / 2 ? 'l' : 'r');
+      let corner = (cy < window.innerHeight / 2 ? 't' : 'b') + (cx < window.innerWidth / 2 ? 'l' : 'r');
+      // Rare Fur Trackers is locked to a top corner — a drop in the bottom half still just
+      // snaps to whichever top corner is horizontally closest, rather than going bottom.
+      corner = clampCornerForWidget(el.id, corner);
       applyWidgetCorner(el, corner);
-      try{ localStorage.setItem(storageKey, corner); }catch(e2){}
+      const g = getActiveGrind();
+      if(g){
+        const key = rareGoalsKeyFor(g);
+        if(!widgetLayout[key]) widgetLayout[key] = {};
+        widgetLayout[key][el.id] = corner;
+        saveWidgetLayout();
+      }
+      // Avg Kills/Diamond and Session Goal are locked together — pull the other one along.
+      syncPairedWidget(el.id, corner);
+      // Clear the drag guard before the collision/stacking passes below so they're free to
+      // reposition this widget (and everything else) now that the drag has actually ended.
+      draggingWidgetId = null;
+      avoidRareWidgetCollision(el.id);
       refreshWidgetStacking(el.id);
     }
     el.addEventListener('pointerdown', onStart);
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerup', onEnd);
-    el.addEventListener('pointercancel', onEnd);
-
-    el._restoreWidgetCorner = function(){
-      let corner = 'tr';
-      try{ corner = localStorage.getItem(storageKey) || 'tr'; }catch(e){}
-      applyWidgetCorner(el, corner);
-    };
   }
 
   function buildShell(){
+    // The Click/Ding and Rare Fur Counter toggles below are linked to whichever grind is
+    // currently active — show the active grind's actual state here (not just the saved
+    // default) so this panel never looks out of sync with the counter screen.
+    const shellActiveGrind = getActiveGrind();
+    const buzzToggleOn = shellActiveGrind ? shellActiveGrind.buzzEnabled : buzzDefaultOn;
+    const rareToggleOn = shellActiveGrind ? shellActiveGrind.rareTracking : rareDefaultOn;
     root.innerHTML = `
       <header class="masthead">
         <div class="masthead-title-row">
@@ -1800,15 +2033,15 @@
         <p class="storage-note">If auto-save shows "Saved," it's stored to your account and safe across tab closes. If it shows the auto-save notice instead, export a backup before closing this tab — you'll get a browser warning if you try to close with unexported changes.</p>
       </header>
 
-      <div class="live-stat" id="liveStatWidget" style="display:none;">
+      <div class="live-stat" id="liveStatWidget" style="display:none;" data-hint="More options for this widget are available in the &quot;Settings&quot; section!">
         <span class="live-label">Avg kills / diamond</span>
         <span class="live-value" id="liveStatValue">—</span>
         <span class="live-sub">current grind</span>
       </div>
 
-      <div class="live-stat session-goal-widget" id="sessionGoalWidget" style="display:none;"></div>
+      <div class="live-stat session-goal-widget" id="sessionGoalWidget" style="display:none;" data-hint="More options for this widget are available in the &quot;Settings&quot; section!"></div>
 
-      <div class="live-stat rare-goals-widget" id="rareGoalsWidget" style="display:none;"></div>
+      <div class="live-stat rare-goals-widget" id="rareGoalsWidget" style="display:none;" data-hint="More options for this widget are available in the &quot;Settings&quot; section!"></div>
 
       <nav class="tabs" id="tabNav">
         <div class="tab-group">
@@ -2052,19 +2285,28 @@
         </section>
 
         <section>
-          <h2>Display</h2>
-          <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
-            <button id="themeToggleBtn" class="theme-toggle-btn"><span class="theme-toggle-icon">${themeLight ? '&#127769;' : '&#9728;'}</span> ${themeLight ? 'Dark mode' : 'Light mode'}</button>
-            <span style="font-size:12px; color:var(--muted);">Switch between dark and light color themes.</span>
+          <h2>Floating Widgets</h2>
+          <p class="info-text">These take effect immediately &mdash; they instantly show or hide the widget everywhere, right now. Turning one off only hides it; its data keeps counting in the background and picks back up normally the moment you turn it back on.</p>
+          <div class="settings-toggle-row">
+            <span class="grind-meta-label">Avg Kills / Diamond</span>
+            <button class="toggle-switch ${showLiveStatWidget ? 'on' : ''}" id="showLiveStatToggle" role="switch" aria-checked="${showLiveStatWidget ? 'true' : 'false'}" aria-label="Toggle Avg Kills/Diamond widget"><span class="toggle-switch-knob"></span></button>
+          </div>
+          <div class="settings-toggle-row">
+            <span class="grind-meta-label">Grinding Session Goal</span>
+            <button class="toggle-switch ${showSessionGoalWidget ? 'on' : ''}" id="showSessionGoalToggle" role="switch" aria-checked="${showSessionGoalWidget ? 'true' : 'false'}" aria-label="Toggle Grinding Session Goal widget"><span class="toggle-switch-knob"></span></button>
+          </div>
+          <div class="settings-toggle-row">
+            <span class="grind-meta-label">Rare Fur Trackers</span>
+            <button class="toggle-switch ${showRareTrackerWidgets ? 'on' : ''}" id="showRareTrackerToggle" role="switch" aria-checked="${showRareTrackerWidgets ? 'true' : 'false'}" aria-label="Toggle Rare Fur Tracker widgets"><span class="toggle-switch-knob"></span></button>
           </div>
         </section>
 
         <section>
-          <h2>Grind Defaults</h2>
-          <p class="info-text">Sets the starting state for brand-new grinds. You can still turn either on or off per-grind at any time from the counter screen — this only controls what a new grind starts with.</p>
+          <h2>Hotkey &amp; Rare Fur Counter</h2>
+          <p class="info-text">Click/Ding and Rare Fur Counter toggles sync instantly with the active grind, whether you flip them here or on the counter screen. Hotkey sound applies everywhere immediately.</p>
           <div class="settings-toggle-row">
             <span class="grind-meta-label">Click/Ding on hotkey use</span>
-            <button class="toggle-switch ${buzzDefaultOn ? 'on' : ''}" id="buzzDefaultToggle" role="switch" aria-checked="${buzzDefaultOn ? 'true' : 'false'}" aria-label="Toggle default click and ding on hotkey use for new grinds"><span class="toggle-switch-knob"></span></button>
+            <button class="toggle-switch ${buzzToggleOn ? 'on' : ''}" id="buzzDefaultToggle" role="switch" aria-checked="${buzzToggleOn ? 'true' : 'false'}" aria-label="Toggle click and ding feedback on hotkey use"><span class="toggle-switch-knob"></span></button>
           </div>
           <div class="settings-toggle-row">
             <span class="grind-meta-label">Hotkey sound</span>
@@ -2080,8 +2322,8 @@
             </div>
           </div>
           <div class="settings-toggle-row">
-            <span class="grind-meta-label">Rare Fur tracking</span>
-            <button class="toggle-switch ${rareDefaultOn ? 'on' : ''}" id="rareDefaultToggle" role="switch" aria-checked="${rareDefaultOn ? 'true' : 'false'}" aria-label="Toggle default rare fur tracking for new grinds"><span class="toggle-switch-knob"></span></button>
+            <span class="grind-meta-label">Rare Fur Counter</span>
+            <button class="toggle-switch ${rareToggleOn ? 'on' : ''}" id="rareDefaultToggle" role="switch" aria-checked="${rareToggleOn ? 'true' : 'false'}" aria-label="Toggle the Rare Fur Counter"><span class="toggle-switch-knob"></span></button>
           </div>
         </section>
 
@@ -2217,34 +2459,11 @@
     document.getElementById('exportBtn').addEventListener('click', exportData);
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
-    (function(){
-      const app = document.querySelector('.app');
-      const btn = document.getElementById('themeToggleBtn');
-      let light = themeLight;
-      btn.addEventListener('click', () => {
-        light = !light;
-        themeLight = light;
-        saveSettings();
-        app.classList.toggle('theme-light', light);
-        const icon = btn.querySelector('.theme-toggle-icon');
-        icon.innerHTML = light ? '&#127769;' : '&#9728;';
-        btn.lastChild.textContent = light ? ' Dark mode' : ' Light mode';
-      });
-    })();
-    document.getElementById('buzzDefaultToggle').addEventListener('click', () => {
-      buzzDefaultOn = !buzzDefaultOn;
-      saveSettings();
-      const btn = document.getElementById('buzzDefaultToggle');
-      btn.classList.toggle('on', buzzDefaultOn);
-      btn.setAttribute('aria-checked', buzzDefaultOn ? 'true' : 'false');
-    });
-    document.getElementById('rareDefaultToggle').addEventListener('click', () => {
-      rareDefaultOn = !rareDefaultOn;
-      saveSettings();
-      const btn = document.getElementById('rareDefaultToggle');
-      btn.classList.toggle('on', rareDefaultOn);
-      btn.setAttribute('aria-checked', rareDefaultOn ? 'true' : 'false');
-    });
+    document.getElementById('buzzDefaultToggle').addEventListener('click', toggleBuzzDefaultSetting);
+    document.getElementById('rareDefaultToggle').addEventListener('click', toggleRareDefaultSetting);
+    document.getElementById('showLiveStatToggle').addEventListener('click', toggleLiveStatWidgetSetting);
+    document.getElementById('showSessionGoalToggle').addEventListener('click', toggleSessionGoalWidgetSetting);
+    document.getElementById('showRareTrackerToggle').addEventListener('click', toggleRareTrackerWidgetSetting);
     document.getElementById('hotkeySoundSelect').addEventListener('change', (e) => {
       hotkeySound = VALID_HOTKEY_SOUNDS.includes(e.target.value) ? e.target.value : 'click';
       saveSettings();
@@ -2259,16 +2478,10 @@
     });
     document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
-    setupDraggableWidget(document.getElementById('liveStatWidget'), 'liveStatWidgetCorner');
-    setupDraggableWidget(document.getElementById('sessionGoalWidget'), 'sessionGoalWidgetCorner');
-    setupDraggableWidget(document.getElementById('rareGoalsWidget'), 'rareGoalsWidgetCorner');
-    const liveStatEl = document.getElementById('liveStatWidget');
-    const sessionGoalEl = document.getElementById('sessionGoalWidget');
-    const rareGoalsEl = document.getElementById('rareGoalsWidget');
-    if(liveStatEl && liveStatEl._restoreWidgetCorner) liveStatEl._restoreWidgetCorner();
-    if(sessionGoalEl && sessionGoalEl._restoreWidgetCorner) sessionGoalEl._restoreWidgetCorner();
-    if(rareGoalsEl && rareGoalsEl._restoreWidgetCorner) rareGoalsEl._restoreWidgetCorner();
-    refreshWidgetStacking();
+    setupDraggableWidget(document.getElementById('liveStatWidget'), followPairedWidgetDuringDrag);
+    setupDraggableWidget(document.getElementById('sessionGoalWidget'), followPairedWidgetDuringDrag);
+    setupDraggableWidget(document.getElementById('rareGoalsWidget'), followMainWidgetDuringDrag);
+    restoreWidgetLayoutForActiveGrind();
 
     function goToInstallGuide(){
       switchTab('counter-tool');
@@ -2324,22 +2537,19 @@
       openSessionGoalModal(false);
     });
 
-    // Rare Fur Goals modals
+    // Rare Fur Trackers modals
     document.getElementById('rgNameConfirmBtn').addEventListener('click', handleRareNameConfirm);
     document.getElementById('rgNameInput').addEventListener('keydown', (e) => {
       if(e.key === 'Enter') handleRareNameConfirm();
     });
-    document.getElementById('rgGoalConfirmBtn').addEventListener('click', handleRareGoalConfirm);
-    document.getElementById('rgGoalInput').addEventListener('keydown', (e) => {
-      if(e.key === 'Enter') handleRareGoalConfirm();
-    });
-    document.getElementById('rgGoalCancelBtn').addEventListener('click', resetRareGoalsAddFlow);
     document.getElementById('rgCloseBtn').addEventListener('click', closeRareGoalsPanel);
-    document.getElementById('rgRevertBtn').addEventListener('click', () => {
-      askConfirm('Revert all changes made since you opened this panel?', revertRareGoalsChanges);
+    document.getElementById('rgMetOk').addEventListener('click', () => {
+      document.getElementById('rgGoalMetModal').classList.add('hidden');
     });
-    document.getElementById('rgMetNo').addEventListener('click', () => resolveRareGoalMet(false));
-    document.getElementById('rgMetYes').addEventListener('click', () => resolveRareGoalMet(true));
+    document.getElementById('rgMetSetNew').addEventListener('click', () => {
+      document.getElementById('rgGoalMetModal').classList.add('hidden');
+      openRareGoalsPanel();
+    });
   }
 
   function switchTab(tab){
@@ -2368,6 +2578,15 @@
     if(resetWrap) resetWrap.style.display = tab === 'tool-settings' ? '' : 'none';
     if(tab === 'summary'){ renderStats(); renderChart(); }
     if(tab === 'golog'){ renderGoLog(); }
+    if(tab === 'tool-settings'){
+      // Safety net: the Settings panel's Click/Ding and Rare Fur toggles are linked to
+      // whichever grind is active, but that can change (switch/complete/delete a grind)
+      // while this panel's DOM sits hidden in the background — resync on the way in.
+      syncLinkedTogglesToActive();
+    }
+    // The floating widgets are meant to be a Current Grind-only affordance — re-evaluate
+    // their visibility on every tab switch so they disappear anywhere else.
+    renderLiveStat();
   }
 
   function resetSessionGoal(){
@@ -2380,7 +2599,7 @@
     const widget = document.getElementById('sessionGoalWidget');
     if(!widget) return;
     const g = getActiveGrind();
-    if(!g){ widget.style.display = 'none'; return; }
+    if(!g || activeTab !== 'current' || !showSessionGoalWidget){ widget.style.display = 'none'; return; }
     widget.style.display = '';
 
     if(!sessionGoal){
@@ -2482,12 +2701,76 @@
     openSessionGoalModal(isEdit);
   }
 
+  // Both the Settings tab and the Current Grind header have their own toggle switch for
+  // each floating widget — they always control the exact same underlying setting (default
+  // on; once switched off it stays off, everywhere, until switched back on), so flipping
+  // either instance updates both UI copies together instead of drifting out of sync.
+  function syncToggleButtonPair(ids, isOn){
+    ids.forEach(id => {
+      const btn = document.getElementById(id);
+      if(!btn) return;
+      btn.classList.toggle('on', isOn);
+      btn.setAttribute('aria-checked', isOn ? 'true' : 'false');
+    });
+  }
+  function toggleLiveStatWidgetSetting(){
+    showLiveStatWidget = !showLiveStatWidget;
+    saveSettings();
+    syncToggleButtonPair(['showLiveStatToggle', 'hdrLiveStatToggle'], showLiveStatWidget);
+    renderLiveStat();
+  }
+  function toggleSessionGoalWidgetSetting(){
+    showSessionGoalWidget = !showSessionGoalWidget;
+    saveSettings();
+    syncToggleButtonPair(['showSessionGoalToggle', 'hdrSessionGoalToggle'], showSessionGoalWidget);
+    renderLiveStat();
+  }
+  function toggleRareTrackerWidgetSetting(){
+    showRareTrackerWidgets = !showRareTrackerWidgets;
+    saveSettings();
+    syncToggleButtonPair(['showRareTrackerToggle', 'hdrRareTrackerToggle'], showRareTrackerWidgets);
+    renderLiveStat();
+  }
+
+  // Click/Ding on hotkey use and the Rare Fur Counter are linked to the currently active grind
+  // (unlike the floating widgets above, which are single global flags): flipping the Settings
+  // toggle instantly changes the active grind's live state, and flipping the active grind's
+  // own toggle on the counter screen updates the Settings default right back. Whichever value
+  // you land on also becomes the starting point for the next brand-new grind. With no active
+  // grind, the Settings toggle just edits that new-grind default on its own.
+  function toggleBuzzDefaultSetting(){
+    const active = getActiveGrind();
+    buzzDefaultOn = active ? !active.buzzEnabled : !buzzDefaultOn;
+    if(active){ active.buzzEnabled = buzzDefaultOn; markDirty(); scheduleSave(); renderCurrentPanel(); }
+    saveSettings();
+    syncToggleButtonPair(['buzzDefaultToggle'], buzzDefaultOn);
+  }
+  function toggleRareDefaultSetting(){
+    const active = getActiveGrind();
+    rareDefaultOn = active ? !active.rareTracking : !rareDefaultOn;
+    if(active){ active.rareTracking = rareDefaultOn; markDirty(); scheduleSave(); renderCurrentPanel(); }
+    saveSettings();
+    syncToggleButtonPair(['rareDefaultToggle'], rareDefaultOn);
+  }
+  // Re-reads whichever grind is currently active (if any) and pushes its Click/Ding and
+  // Rare Fur Counter state onto the Settings toggles. Needed anywhere activeGrindId or the
+  // grind list can change without the user navigating tabs — e.g. Reset All and backup
+  // Import both happen from right there on the Settings tab, so the normal
+  // switch-to-Settings safety net never gets a chance to fire.
+  function syncLinkedTogglesToActive(){
+    const active = getActiveGrind();
+    syncToggleButtonPair(['buzzDefaultToggle'], active ? active.buzzEnabled : buzzDefaultOn);
+    syncToggleButtonPair(['rareDefaultToggle'], active ? active.rareTracking : rareDefaultOn);
+  }
+
   function renderLiveStat(){
     const el = document.getElementById('liveStatValue');
     const widget = document.getElementById('liveStatWidget');
     if(!el || !widget) return;
     const g = getActiveGrind();
-    if(!g){ widget.style.display = 'none'; renderSessionGoal(); renderRareGoalsWidget(); return; }
+    // All three floating widgets are Current Grind-only — hide them on every other tab.
+    // Each can also be independently hidden from Settings → Floating Widgets.
+    if(!g || activeTab !== 'current' || !showLiveStatWidget){ widget.style.display = 'none'; renderSessionGoal(); renderRareGoalsWidget(); return; }
     widget.style.display = '';
     const dia = totalDiamond(g);
     const kills = totalKillsOf(g);
@@ -2496,69 +2779,37 @@
     renderRareGoalsWidget();
   }
 
-  // ---- Rare Fur Goals ----
-  // A fully independent, species+platform-scoped tracker for named rares a player wants.
-  // Deliberately does not touch the "Rares" counter in Current Grind or any All Grinds
-  // Summary stats — see rareGoalsKeyFor() and RARE_GOALS_KEY at the top of the file.
-
-  function currentRareGoalsEntries(){
-    const g = getActiveGrind();
-    if(!g) return null;
-    const key = rareGoalsKeyFor(g);
-    if(!rareGoals[key]) rareGoals[key] = [];
-    return rareGoals[key];
-  }
+  // ---- Rare Fur Trackers ----
+  // A fully independent, species+platform-scoped set of counters for named rares a
+  // player wants. Deliberately does not touch the "Rares" counter in Current Grind or
+  // any All Grinds Summary stats — see rareGoalsKeyFor() and RARE_GOALS_KEY at the top
+  // of the file. A goal is optional per tracker; the top widget is just an entry point
+  // into the management panel, and each named fur gets its own floating counter widget
+  // stacked underneath it (see renderRareFurItemWidgets()).
 
   function renderRareGoalsWidget(){
     const widget = document.getElementById('rareGoalsWidget');
     if(!widget) return;
     const g = getActiveGrind();
-    if(!g){ widget.style.display = 'none'; return; }
-    widget.style.display = '';
-
-    const key = rareGoalsKeyFor(g);
-    const entries = rareGoals[key] || [];
-
-    if(entries.length === 0){
-      widget.innerHTML = `
-        <span class="live-label">Rare Fur Goals</span>
-        <div class="sg-empty">
-          <button class="sg-set-btn" id="rgSetBtn">+ Set rare goals</button>
-        </div>`;
-      document.getElementById('rgSetBtn').addEventListener('click', () => openRareGoalsPanel());
-      refreshWidgetStacking();
+    if(!g || activeTab !== 'current' || !showRareTrackerWidgets){
+      widget.style.display = 'none';
+      renderRareFurItemWidgets();
       return;
     }
-
-    const totalGoal = entries.reduce((s, e) => s + (e.goal || 0), 0);
-    const totalCount = entries.reduce((s, e) => s + Math.min(e.count || 0, e.goal || 0), 0);
-    const pct = totalGoal > 0 ? Math.min(100, (totalCount / totalGoal) * 100) : 0;
-    const pctLabel = Math.floor(pct) + '%';
-
+    widget.style.display = '';
     widget.innerHTML = `
-      <span class="live-label">Rare Fur Goals</span>
-      <div class="sg-counts">
-        <span class="sg-kills">${totalCount}</span>
-        <span class="sg-sep"> / </span>
-        <span class="sg-goal">${totalGoal}</span>
-        <button class="sg-edit-btn" id="rgEditBtn" title="Manage rare goals">✎</button>
-      </div>
-      <div class="sg-bar-wrap">
-        <div class="sg-bar-fill" style="width:${pct}%"></div>
-      </div>
-      <div class="sg-pct">${pctLabel}</div>`;
-
-    document.getElementById('rgEditBtn').addEventListener('click', () => openRareGoalsPanel());
+      <span class="live-label">Rare Fur Trackers</span>
+      <p class="rare-goals-widget-desc">Create/Edit Fur Tracker(s) and Goal(s)</p>
+      <button class="rare-goals-create-btn" id="rgSetBtn">Create</button>`;
+    document.getElementById('rgSetBtn').addEventListener('click', () => openRareGoalsPanel());
     refreshWidgetStacking();
+    renderRareFurItemWidgets();
   }
 
   function openRareGoalsPanel(){
     const g = getActiveGrind();
     if(!g) return;
     rareGoalsPanelGrind = g;
-    // Snapshot this key's entries as they are right now, so "Revert Changes" can restore
-    // exactly this state regardless of what gets added/adjusted/removed while open.
-    rareGoalsPanelSnapshot = JSON.parse(JSON.stringify(currentRareGoalsEntries() || []));
     resetRareGoalsAddFlow();
     renderRareGoalsList();
     document.getElementById('rareGoalsModal').classList.remove('hidden');
@@ -2568,66 +2819,31 @@
     document.getElementById('rareGoalsModal').classList.add('hidden');
     resetRareGoalsAddFlow();
     rareGoalsPanelGrind = null;
-    rareGoalsPanelSnapshot = null;
-  }
-
-  // Restores this key's entries to how they were when the panel was opened, discarding
-  // any furs added/removed and any count changes made since — same "undo this editing
-  // session" idea as the Grind Log inline counter editor's Revert button.
-  function revertRareGoalsChanges(){
-    const g = rareGoalsPanelGrind;
-    if(!g || !rareGoalsPanelSnapshot) return;
-    const key = rareGoalsKeyFor(g);
-    rareGoals[key] = JSON.parse(JSON.stringify(rareGoalsPanelSnapshot));
-    saveRareGoals();
-    resetRareGoalsAddFlow();
-    renderRareGoalsList();
-    renderRareGoalsWidget();
   }
 
   function resetRareGoalsAddFlow(){
-    rareGoalsPendingName = null;
-    const nameStep = document.getElementById('rgAddNameStep');
-    const goalStep = document.getElementById('rgAddGoalStep');
     const nameInput = document.getElementById('rgNameInput');
-    const goalInput = document.getElementById('rgGoalInput');
-    if(nameInput) nameInput.value = '';
-    if(goalInput) goalInput.value = '';
-    if(nameStep) nameStep.classList.remove('hidden');
-    if(goalStep) goalStep.classList.add('hidden');
+    if(nameInput){ nameInput.value = ''; nameInput.placeholder = 'e.g. Albino, Melanistic, Piebald…'; }
   }
 
+  // Typing a name and confirming creates the tracker immediately — no goal required.
+  // A goal can be added any time afterward from its row below (see toggleGoalInputRow).
   function handleRareNameConfirm(){
     const nameInput = document.getElementById('rgNameInput');
     const name = (nameInput.value || '').trim();
     if(!name) return;
     const entries = currentRareGoalsEntries();
-    if(entries && entries.some(e => e.name.toLowerCase() === name.toLowerCase())){
+    if(!entries) return;
+    if(entries.some(e => e.name.toLowerCase() === name.toLowerCase())){
       nameInput.value = '';
       nameInput.placeholder = 'Already tracking that one — try another name';
       return;
     }
-    rareGoalsPendingName = name;
-    document.getElementById('rgAddNameStep').classList.add('hidden');
-    document.getElementById('rgAddGoalStep').classList.remove('hidden');
-    document.getElementById('rgGoalPrompt').textContent = `How many "${name}" do you want to get?`;
-    const goalInput = document.getElementById('rgGoalInput');
-    goalInput.value = '';
-    goalInput.focus();
-  }
-
-  function handleRareGoalConfirm(){
-    if(!rareGoalsPendingName) return;
-    const goalInput = document.getElementById('rgGoalInput');
-    const v = parseInt(goalInput.value, 10);
-    if(!v || v < 1) return;
-    const entries = currentRareGoalsEntries();
-    if(!entries) return;
-    entries.push({ name: rareGoalsPendingName, goal: v, count: 0, metShown: false });
+    entries.push({ id: genRareId(), name, count: 0, goal: null });
     saveRareGoals();
     resetRareGoalsAddFlow();
     renderRareGoalsList();
-    renderRareGoalsWidget();
+    renderRareFurItemWidgets();
   }
 
   function renderRareGoalsList(){
@@ -2638,81 +2854,405 @@
       list.innerHTML = `<div class="empty-note" style="margin:10px 0 0;">No rares tracked yet for this grind.</div>`;
       return;
     }
-    list.innerHTML = entries.map((e, i) => `
-      <div class="rg-entry" data-idx="${i}">
-        <div class="rg-entry-name">${escapeHtml(e.name)}</div>
-        <div class="rg-entry-controls">
-          <button class="ctrl-btn rg-minus" data-idx="${i}">−</button>
-          <span class="rg-entry-count">${e.count} / ${e.goal}</span>
-          <button class="ctrl-btn rg-plus" data-idx="${i}">+</button>
-          <button class="rg-delete" data-idx="${i}" title="Remove">🗑</button>
-        </div>
-      </div>`).join('');
+    list.innerHTML = entries.map(e => {
+      const hasGoal = typeof e.goal === 'number' && e.goal > 0;
+      const pct = hasGoal ? Math.min(100, (e.count / e.goal) * 100) : 0;
+      const complete = hasGoal && e.count >= e.goal;
+      return `
+        <div class="rg-entry" data-id="${e.id}">
+          <div class="rg-entry-top">
+            <div class="rg-entry-name">${escapeHtml(e.name)}</div>
+            <button class="rg-delete" data-id="${e.id}" title="Remove tracker">${trashIcon}</button>
+          </div>
+          <div class="rg-entry-count-row">Count: <strong>${e.count}</strong></div>
+          ${hasGoal ? `
+            <div class="rg-goal-row">
+              <span class="rg-goal-label">Goal: ${e.goal}</span>
+              ${complete ? '<span class="rg-goal-check" title="Goal complete">&#10003;</span>' : ''}
+              <button class="rg-goal-edit" data-id="${e.id}" title="Change goal">&#9998;</button>
+              <button class="rg-goal-remove" data-id="${e.id}" title="Remove goal">&times;</button>
+            </div>
+            <div class="sg-bar-wrap"><div class="sg-bar-fill" style="width:${pct}%"></div></div>
+            <div class="sg-pct">${Math.floor(pct)}%</div>
+          ` : `
+            <button class="rg-add-goal-btn" data-id="${e.id}">+ Add Goal</button>
+          `}
+          <div class="rg-goal-input-row hidden" id="rg-goal-input-row-${e.id}">
+            <input type="number" min="1" placeholder="e.g. 5" id="rg-goal-input-${e.id}">
+            <button class="rg-goal-input-confirm" data-id="${e.id}">Set</button>
+            <button class="rg-goal-input-cancel" data-id="${e.id}">Cancel</button>
+          </div>
+        </div>`;
+    }).join('');
 
-    list.querySelectorAll('.rg-plus').forEach(btn => btn.addEventListener('click', () => adjustRareCount(parseInt(btn.dataset.idx, 10), 1)));
-    list.querySelectorAll('.rg-minus').forEach(btn => btn.addEventListener('click', () => adjustRareCount(parseInt(btn.dataset.idx, 10), -1)));
-    list.querySelectorAll('.rg-delete').forEach(btn => btn.addEventListener('click', () => removeRareEntry(parseInt(btn.dataset.idx, 10))));
+    list.querySelectorAll('.rg-delete').forEach(btn => btn.addEventListener('click', () => removeRareEntry(btn.dataset.id)));
+    list.querySelectorAll('.rg-add-goal-btn').forEach(btn => btn.addEventListener('click', () => toggleGoalInputRow(btn.dataset.id, true)));
+    list.querySelectorAll('.rg-goal-edit').forEach(btn => btn.addEventListener('click', () => toggleGoalInputRow(btn.dataset.id, true)));
+    list.querySelectorAll('.rg-goal-remove').forEach(btn => btn.addEventListener('click', () => removeGoal(btn.dataset.id)));
+    list.querySelectorAll('.rg-goal-input-confirm').forEach(btn => btn.addEventListener('click', () => confirmGoalInput(btn.dataset.id)));
+    list.querySelectorAll('.rg-goal-input-cancel').forEach(btn => btn.addEventListener('click', () => toggleGoalInputRow(btn.dataset.id, false)));
+    list.querySelectorAll('.rg-goal-input-row input').forEach(inp => inp.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter') confirmGoalInput(inp.id.replace('rg-goal-input-', ''));
+    }));
   }
 
-  function adjustRareCount(idx, delta){
-    const entries = currentRareGoalsEntries();
-    if(!entries || !entries[idx]) return;
-    const e = entries[idx];
-    e.count = Math.max(0, (e.count || 0) + delta);
-    if(e.count >= e.goal && !e.metShown){
-      e.metShown = true;
-      setTimeout(() => showRareGoalMetModal(idx), 50);
-    } else if(e.count < e.goal){
-      e.metShown = false;
+  // prefix distinguishes which set of input-row DOM ids to operate on — the modal's
+  // rows use 'rg' (rg-goal-input-row-<id>), the floating Goal Progress widget's rows
+  // use 'pg' (pg-goal-input-row-<id>), since both can be on screen at once and DOM ids
+  // must stay unique.
+  function toggleGoalInputRow(id, show, prefix){
+    prefix = prefix || 'rg';
+    const row = document.getElementById(`${prefix}-goal-input-row-${id}`);
+    if(!row) return;
+    row.classList.toggle('hidden', !show);
+    if(show){
+      const entries = currentRareGoalsEntries() || [];
+      const e = entries.find(x => x.id === id);
+      const input = document.getElementById(`${prefix}-goal-input-${id}`);
+      if(input){ input.value = (e && e.goal) ? e.goal : ''; input.focus(); }
     }
+  }
+
+  function confirmGoalInput(id, prefix){
+    prefix = prefix || 'rg';
+    const input = document.getElementById(`${prefix}-goal-input-${id}`);
+    if(!input) return;
+    const v = parseInt(input.value, 10);
+    if(!v || v < 1) return;
+    const entries = currentRareGoalsEntries();
+    const e = entries && entries.find(x => x.id === id);
+    if(!e) return;
+    e.goal = v;
     saveRareGoals();
     renderRareGoalsList();
-    renderRareGoalsWidget();
+    renderRareFurItemWidgets();
+    checkAllGoalsCelebration();
   }
 
-  function removeRareEntry(idx){
+  function removeGoal(id){
     const entries = currentRareGoalsEntries();
-    if(!entries || !entries[idx]) return;
-    const name = entries[idx].name;
-    askConfirm(`Stop tracking "${name}"?`, () => {
-      entries.splice(idx, 1);
+    const e = entries && entries.find(x => x.id === id);
+    if(!e) return;
+    e.goal = null;
+    saveRareGoals();
+    renderRareGoalsList();
+    renderRareFurItemWidgets();
+    checkAllGoalsCelebration();
+  }
+
+  function removeRareEntry(id){
+    const entries = currentRareGoalsEntries();
+    const e = entries && entries.find(x => x.id === id);
+    if(!e) return;
+    askConfirm(`Stop tracking "${e.name}"?`, () => {
+      const idx = entries.findIndex(x => x.id === id);
+      if(idx !== -1) entries.splice(idx, 1);
       saveRareGoals();
       renderRareGoalsList();
-      renderRareGoalsWidget();
+      renderRareFurItemWidgets();
+      checkAllGoalsCelebration();
     });
   }
 
-  function showRareGoalMetModal(idx){
-    const entries = currentRareGoalsEntries();
-    if(!entries || !entries[idx]) return;
-    rareGoalsMetPendingIdx = idx;
+  // Fires once when every goal-bearing tracker for this key is complete, instead of a
+  // per-fur popup — resets automatically if a count drops back below its goal or a new
+  // goal is added, so it can fire again the next time everything's complete.
+  function checkAllGoalsCelebration(){
+    const g = rareGoalsPanelGrind || getActiveGrind();
+    if(!g) return;
+    const key = rareGoalsKeyFor(g);
+    const bucket = rareGoals[key];
+    if(!bucket) return;
+    const goalEntries = bucket.entries.filter(e => typeof e.goal === 'number' && e.goal > 0);
+    const allComplete = goalEntries.length > 0 && goalEntries.every(e => e.count >= e.goal);
+    if(allComplete && !bucket.allCelebrated){
+      bucket.allCelebrated = true;
+      saveRareGoals();
+      setTimeout(() => showAllGoalsCelebrationModal(), 50);
+    } else if(!allComplete && bucket.allCelebrated){
+      bucket.allCelebrated = false;
+      saveRareGoals();
+    }
+  }
+
+  function showAllGoalsCelebrationModal(){
     const modal = document.getElementById('rgGoalMetModal');
     if(!modal) return;
-    document.getElementById('rgMetText').textContent = `You've collected all the "${entries[idx].name}" furs you were after. Want to set a new goal?`;
+    document.getElementById('rgMetText').textContent = "You've hit every goal you set for this grind's rare fur trackers!";
     modal.classList.remove('hidden');
   }
 
-  // Fires when the player responds to the goal-met popup, whether they want to set
-  // another goal or not. Either way the just-completed fur is cleared out of the list —
-  // it's done, so it no longer needs tracking. If they said yes, the add-a-fur step
-  // reopens clean so they can immediately name the next one.
-  function resolveRareGoalMet(startNew){
-    document.getElementById('rgGoalMetModal').classList.add('hidden');
+  // ---- Rare fur floating counter widgets ----
+  // One small counter widget per tracker, plus a single combined progress widget for
+  // any trackers that have a goal, both "locked" underneath the main Rare Fur Trackers
+  // widget — no keyboard sync, no subtext, no upper limit on the counters. The fixed
+  // stacking order is always: main widget, then the goal-progress widget (if any goals
+  // are set), then each fur counter widget in entries[] order — regardless of which
+  // corner the group is anchored to (see layoutRareFurItemWidgets). They follow the main
+  // widget as a unit when IT is dragged (see setupDraggableWidget's onDragMove hook),
+  // but individual fur widgets can be reordered among themselves by dragging one
+  // directly (see setupFurWidgetReorderDrag) — the goal-progress widget's bars reorder
+  // to match automatically since both are driven off the same entries[] order.
+
+  function removeRareFurItemWidgets(){
+    document.querySelectorAll('.rare-fur-item-widget').forEach(el => el.remove());
+    const gw = document.getElementById('rareGoalsProgressWidget');
+    if(gw) gw.remove();
+  }
+
+  function renderRareFurItemWidgets(){
+    const mainWidget = document.getElementById('rareGoalsWidget');
+    if(!mainWidget) return;
+    const g = getActiveGrind();
+    const showing = g && activeTab === 'current' && mainWidget.style.display !== 'none';
+    const entries = showing ? (currentRareGoalsEntries() || []) : [];
+    if(!showing || entries.length === 0){
+      removeRareFurItemWidgets();
+      return;
+    }
+
+    const existing = new Map();
+    document.querySelectorAll('.rare-fur-item-widget').forEach(el => existing.set(el.dataset.furId, el));
+    existing.forEach((el, id) => { if(!entries.some(e => e.id === id)) el.remove(); });
+
+    entries.forEach(entry => {
+      let el = existing.get(entry.id);
+      if(!el){
+        el = document.createElement('div');
+        el.className = 'live-stat rare-fur-item-widget';
+        el.dataset.furId = entry.id;
+        document.body.appendChild(el);
+        setupFurWidgetReorderDrag(el);
+      }
+      el.classList.toggle('rf-collapsed', !!entry.collapsed);
+      el.innerHTML = `
+        <div class="rf-item-top">
+          <span class="rf-item-name">${escapeHtml(entry.name)}</span>
+          <button class="rf-collapse-btn" type="button" title="${entry.collapsed ? 'Expand' : 'Minimize'}">${entry.collapsed ? '&#9660;' : '&#9650;'}</button>
+        </div>
+        ${entry.collapsed ? '' : `
+        <div class="rf-item-controls">
+          <button class="ctrl-btn rf-minus" type="button" aria-label="Subtract">&minus;</button>
+          <span class="rf-item-count">${entry.count}</span>
+          <button class="ctrl-btn rf-plus" type="button" aria-label="Add">+</button>
+        </div>`}`;
+      el.querySelector('.rf-collapse-btn').addEventListener('click', () => toggleFurCollapsed(entry.id));
+      if(!entry.collapsed){
+        el.querySelector('.rf-minus').addEventListener('click', () => adjustFurItemCount(entry.id, -1));
+        el.querySelector('.rf-plus').addEventListener('click', () => adjustFurItemCount(entry.id, 1));
+      }
+    });
+
+    renderRareGoalsProgressWidget(entries);
+    layoutRareFurItemWidgets();
+  }
+
+  function toggleFurCollapsed(id){
     const entries = currentRareGoalsEntries();
-    if(entries && rareGoalsMetPendingIdx != null && entries[rareGoalsMetPendingIdx]){
-      entries.splice(rareGoalsMetPendingIdx, 1);
-      saveRareGoals();
-    }
-    rareGoalsMetPendingIdx = null;
+    const e = entries && entries.find(x => x.id === id);
+    if(!e) return;
+    e.collapsed = !e.collapsed;
+    saveRareGoals();
+    renderRareFurItemWidgets();
+  }
+
+  function adjustFurItemCount(id, delta){
+    const entries = currentRareGoalsEntries();
+    const e = entries && entries.find(x => x.id === id);
+    if(!e) return;
+    e.count = Math.max(0, (e.count || 0) + delta);
+    saveRareGoals();
+    renderRareFurItemWidgets();
     renderRareGoalsList();
-    renderRareGoalsWidget();
-    if(startNew){
-      resetRareGoalsAddFlow();
-      const panel = document.getElementById('rareGoalsModal');
-      if(panel && panel.classList.contains('hidden')) panel.classList.remove('hidden');
-      const nameInput = document.getElementById('rgNameInput');
-      if(nameInput) nameInput.focus();
+    checkAllGoalsCelebration();
+  }
+
+  // Single combined floating widget listing progress for every tracker that HAS a goal set
+  // — trackers with no goal yet simply aren't listed here at all. Purely a display — the
+  // one button here (top-right) opens the same Create/Edit Fur Tracker(s) panel the main
+  // widget's button does, which is where goals actually get created/changed/removed.
+  // Exists whenever at least one tracker has a goal; removed otherwise.
+  function renderRareGoalsProgressWidget(entries){
+    let widget = document.getElementById('rareGoalsProgressWidget');
+    const goalEntries = (entries || []).filter(e => typeof e.goal === 'number' && e.goal > 0);
+    if(goalEntries.length === 0){
+      if(widget) widget.remove();
+      return;
     }
+    if(!widget){
+      widget = document.createElement('div');
+      widget.className = 'live-stat rare-goals-progress-widget';
+      widget.id = 'rareGoalsProgressWidget';
+      document.body.appendChild(widget);
+    }
+    widget.innerHTML = `
+      <button class="rgp-edit-btn" id="rgpEditBtn" title="Create/Edit Fur Tracker(s) and Goal(s)">&#9998;</button>
+      <span class="live-label">Goal Progress</span>
+      <div class="rg-progress-list">
+        ${goalEntries.map(e => {
+          const pct = Math.min(100, (e.count / e.goal) * 100);
+          const complete = e.count >= e.goal;
+          return `
+            <div class="rg-progress-row">
+              <div class="rg-goal-row">
+                <span class="rg-goal-label">${escapeHtml(e.name)}: ${e.goal}</span>
+                ${complete ? '<span class="rg-goal-check" title="Goal complete">&#10003;</span>' : ''}
+              </div>
+              <div class="sg-bar-wrap"><div class="sg-bar-fill" style="width:${pct}%"></div></div><div class="sg-pct">${Math.floor(pct)}%</div>
+            </div>`;
+        }).join('')}
+      </div>`;
+
+    document.getElementById('rgpEditBtn').addEventListener('click', () => openRareGoalsPanel());
+  }
+
+  // Positions the goal-progress widget (if present) and every fur widget directly beneath
+  // the main Rare Fur Trackers widget, in a fixed reading order top-to-bottom: creation
+  // widget, goal widget, then fur counters in entries[] order. Pass excludeEl to skip
+  // repositioning one widget — used mid-drag so the widget currently being dragged keeps
+  // following the pointer while its siblings reflow live.
+  // Rare Fur Trackers is locked to a top corner (see setupDraggableWidget), so this only
+  // ever needs to extend downward from main — main's own position is never touched here.
+  // It's always re-anchored to its true, stable corner offset first (see applyWidgetCorner)
+  // rather than trusting main's current on-screen rect, so this stays correct no matter how
+  // many times it's re-run or how satellite heights have changed since the last call.
+  function layoutRareFurItemWidgets(excludeEl){
+    excludeEl = excludeEl || draggingFurWidgetEl;
+    const mainWidget = document.getElementById('rareGoalsWidget');
+    if(!mainWidget || mainWidget.style.display === 'none') return;
+    const corner = clampCornerForWidget('rareGoalsWidget', mainWidget.dataset.corner || 'tr');
+    const isLeft = corner.charAt(1) === 'l';
+    const anchorOffset = parseFloat(mainWidget.dataset.anchorOffset) || 0;
+    const entries = currentRareGoalsEntries() || [];
+
+    const progressEl = document.getElementById('rareGoalsProgressWidget');
+    const satellites = [];
+    if(progressEl) satellites.push(progressEl);
+    entries.forEach(en => {
+      const el = document.querySelector(`.rare-fur-item-widget[data-fur-id="${en.id}"]`);
+      if(el) satellites.push(el);
+    });
+
+    // Never fight a drag in progress — if the main widget itself is what's currently being
+    // dragged, leave its live position alone (followMainWidgetDuringDrag already keeps the
+    // satellites trailing it) instead of snapping it back to its last saved corner.
+    if(draggingWidgetId !== 'rareGoalsWidget') applyWidgetCorner(mainWidget, corner, anchorOffset);
+    if(satellites.length === 0) return;
+
+    const rect = mainWidget.getBoundingClientRect();
+    const setX = (el) => {
+      if(isLeft){ el.style.left = rect.left + 'px'; el.style.right = 'auto'; }
+      else { el.style.right = (window.innerWidth - rect.right) + 'px'; el.style.left = 'auto'; }
+      el.style.width = rect.width + 'px';
+    };
+
+    let cursor = rect.bottom + 10;
+    satellites.forEach(el => {
+      const h = el.getBoundingClientRect().height;
+      if(el !== excludeEl){ el.style.top = cursor + 'px'; el.style.bottom = 'auto'; setX(el); }
+      cursor += h + 10;
+    });
+  }
+
+  // While the main widget is being actively dragged (not yet dropped/snapped to a
+  // corner), just trail the goal-progress widget and fur widgets directly below it at
+  // its live position, in the same fixed order — once dropped, refreshWidgetStacking()
+  // calls layoutRareFurItemWidgets() which orients them properly (above/below) based on
+  // the corner it lands in.
+  function followMainWidgetDuringDrag(){
+    const mainWidget = document.getElementById('rareGoalsWidget');
+    if(!mainWidget) return;
+    const rect = mainWidget.getBoundingClientRect();
+    const entries = currentRareGoalsEntries() || [];
+    const progressEl = document.getElementById('rareGoalsProgressWidget');
+    const items = [];
+    if(progressEl) items.push(progressEl);
+    entries.forEach(en => {
+      const el = document.querySelector(`.rare-fur-item-widget[data-fur-id="${en.id}"]`);
+      if(el) items.push(el);
+    });
+    let cursor = rect.bottom + 10;
+    items.forEach(el => {
+      el.style.left = rect.left + 'px';
+      el.style.right = 'auto';
+      el.style.width = rect.width + 'px';
+      el.style.top = cursor + 'px';
+      el.style.bottom = 'auto';
+      cursor += el.getBoundingClientRect().height + 10;
+    });
+  }
+
+  // Dragging a fur widget vertically reorders it among its siblings (swapping entries[]
+  // order live as it crosses a neighbor's midpoint) instead of moving/corner-snapping —
+  // that's reserved for dragging the main widget, which carries this whole group along.
+  // The goal-progress widget's bar order re-renders to match on drop, since both are
+  // driven off the same entries[] array.
+  function setupFurWidgetReorderDrag(el){
+    let dragging = false, moved = false, pointerId = null, startY = 0, origTop = 0;
+    const DRAG_THRESHOLD = 4;
+
+    function onStart(e){
+      if(e.target.closest('button')) return;
+      dragging = true; moved = false;
+      startY = e.clientY;
+      origTop = el.getBoundingClientRect().top;
+      pointerId = e.pointerId;
+      // Document-level for the duration of the drag — see setupDraggableWidget for why
+      // relying on setPointerCapture + element-scoped listeners alone isn't reliable enough.
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onEnd);
+      document.addEventListener('pointercancel', onEnd);
+    }
+    function onMove(e){
+      if(!dragging || e.pointerId !== pointerId) return;
+      const dy = e.clientY - startY;
+      if(!moved){
+        if(Math.abs(dy) < DRAG_THRESHOLD) return;
+        moved = true;
+        draggingFurWidgetEl = el;
+        el.classList.add('widget-dragging');
+        el.style.zIndex = '20';
+        try{ el.setPointerCapture(pointerId); }catch(err){}
+      }
+      e.preventDefault();
+      el.style.top = (origTop + dy) + 'px';
+
+      const entries = currentRareGoalsEntries();
+      if(!entries) return;
+      const myIdx = entries.findIndex(x => x.id === el.dataset.furId);
+      if(myIdx === -1) return;
+      const myRect = el.getBoundingClientRect();
+      const myCenter = myRect.top + myRect.height / 2;
+      document.querySelectorAll('.rare-fur-item-widget').forEach(sib => {
+        if(sib === el) return;
+        const sibIdx = entries.findIndex(x => x.id === sib.dataset.furId);
+        if(sibIdx === -1) return;
+        const sRect = sib.getBoundingClientRect();
+        const sCenter = sRect.top + sRect.height / 2;
+        const curIdx = entries.findIndex(x => x.id === el.dataset.furId);
+        if((curIdx < sibIdx && myCenter > sCenter) || (curIdx > sibIdx && myCenter < sCenter)){
+          const [movedEntry] = entries.splice(curIdx, 1);
+          entries.splice(sibIdx, 0, movedEntry);
+          layoutRareFurItemWidgets(el);
+        }
+      });
+    }
+    function onEnd(e){
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onEnd);
+      document.removeEventListener('pointercancel', onEnd);
+      if(!dragging) return;
+      dragging = false;
+      if(!moved) return;
+      el.classList.remove('widget-dragging');
+      el.style.zIndex = '';
+      try{ el.releasePointerCapture(pointerId); }catch(err){}
+      draggingFurWidgetEl = null;
+      saveRareGoals();
+      renderRareFurItemWidgets();
+      renderRareGoalsList();
+    }
+    el.addEventListener('pointerdown', onStart);
   }
 
   function buildOpenGrindsListHtml(){
@@ -2847,7 +3387,7 @@
             ${keybindFooter('other', 'Total Kills')}
           </div>
           <div class="counter-card rare ${g.rareTracking ? '' : 'rare-off'}" id="rareCard">
-            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" data-hint="More advanced settings in the &quot;Settings&quot; section!" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
+            <div class="card-top"><span class="card-icon" style="color:var(--rare)">${rareIcon}</span><span class="card-label">Rare Fur</span><button class="rare-switch ${g.rareTracking ? 'on' : ''}" id="rareToggle" role="switch" aria-checked="${g.rareTracking ? 'true' : 'false'}" style="margin-left:auto;flex-shrink:0;"><span class="rare-switch-knob"></span></button></div>
             <div class="card-sub">this grind</div>
             <div class="counter-controls">
               <button class="ctrl-btn minus" data-target="rareCount" ${g.rareTracking ? '' : 'disabled'} aria-label="Subtract rare">&minus;</button>
@@ -2913,7 +3453,7 @@
         <div class="grind-header-meta">
           <div class="grind-meta-col"><span class="grind-meta-label">Grind status:</span><span class="cycle-flag">${escapeHtml(statusLabel)}</span></div>
           <div class="grind-meta-col"><span class="grind-meta-label">Platform:</span><span class="platform-tag">${escapeHtml(g.platform)}</span></div>
-          <div class="grind-meta-col"><span class="grind-meta-label"><span class="lbl-desktop">Click/Ding on hotkey:</span><span class="lbl-mobile">Click/Ding on +/- buttons:</span></span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle click and ding feedback" data-hint="More advanced settings in the &quot;Settings&quot; section!"><span class="toggle-switch-knob"></span></button></div>
+          <div class="grind-meta-col"><span class="grind-meta-label"><span class="lbl-desktop">Click/Ding on hotkey:</span><span class="lbl-mobile">Click/Ding on +/- buttons:</span></span><button class="toggle-switch ${g.buzzEnabled ? 'on' : ''}" id="buzzToggle" role="switch" aria-checked="${g.buzzEnabled ? 'true' : 'false'}" aria-label="Toggle click and ding feedback"><span class="toggle-switch-knob"></span></button></div>
         </div>
       </div>
       <div id="renameArea" style="display:none;" class="rename-area">
@@ -3013,7 +3553,10 @@
         const active = getActiveGrind();
         if(!active) return;
         active.rareTracking = !active.rareTracking;
-        markDirty(); scheduleSave();
+        // Linked to Settings → Hotkey & Rare Fur Counter: keep the new-grind default in step.
+        rareDefaultOn = active.rareTracking;
+        markDirty(); scheduleSave(); saveSettings();
+        syncToggleButtonPair(['rareDefaultToggle'], rareDefaultOn);
         renderCurrentPanel();
       });
     }
@@ -3024,7 +3567,10 @@
         const active = getActiveGrind();
         if(!active) return;
         active.buzzEnabled = !active.buzzEnabled;
-        markDirty(); scheduleSave();
+        // Linked to Settings → Hotkey & Rare Fur Counter: keep the new-grind default in step.
+        buzzDefaultOn = active.buzzEnabled;
+        markDirty(); scheduleSave(); saveSettings();
+        syncToggleButtonPair(['buzzDefaultToggle'], buzzDefaultOn);
         renderCurrentPanel();
       });
     }
@@ -3721,7 +4267,7 @@
         exportedAt: new Date().toISOString(),
         grinds, activeGrindId,
         keybinds,
-        settings: { twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound },
+        settings: { twoStepDelete, buzzDefaultOn, rareDefaultOn, hotkeySound, showLiveStatWidget, showSessionGoalWidget, showRareTrackerWidgets },
         customDefaults: loadCustomDefaults(),
         rareGoals
       };
@@ -4117,19 +4663,18 @@
   function mergeRareGoals(incomingRareGoals){
     if(!incomingRareGoals) return 0;
     let added = 0;
-    Object.entries(incomingRareGoals).forEach(([key, entries]) => {
-      if(!Array.isArray(entries)) return;
+    Object.entries(incomingRareGoals).forEach(([key, val]) => {
+      const incomingBucket = normalizeRareGoalsBucket(val);
       if(!rareGoals[key]){
-        rareGoals[key] = entries.map(e => ({ name: String(e.name||''), goal: parseInt(e.goal,10)||1, count: parseInt(e.count,10)||0, metShown: !!e.metShown }));
-        added += rareGoals[key].length;
+        rareGoals[key] = incomingBucket;
+        added += incomingBucket.entries.length;
         return;
       }
-      const existingNames = new Set(rareGoals[key].map(e => e.name.toLowerCase()));
-      entries.forEach(e => {
-        const name = String(e.name||'').trim();
-        if(name && !existingNames.has(name.toLowerCase())){
-          rareGoals[key].push({ name, goal: parseInt(e.goal,10)||1, count: parseInt(e.count,10)||0, metShown: !!e.metShown });
-          existingNames.add(name.toLowerCase());
+      const existingNames = new Set(rareGoals[key].entries.map(e => e.name.toLowerCase()));
+      incomingBucket.entries.forEach(e => {
+        if(e.name && !existingNames.has(e.name.toLowerCase())){
+          rareGoals[key].entries.push({ id: genRareId(), name: e.name, count: e.count, goal: e.goal });
+          existingNames.add(e.name.toLowerCase());
           added++;
         }
       });
@@ -4213,14 +4758,21 @@
               buzzDefaultOn = incomingSettings.buzzDefaultOn === true;
               rareDefaultOn = incomingSettings.rareDefaultOn === true;
               hotkeySound = VALID_HOTKEY_SOUNDS.includes(incomingSettings.hotkeySound) ? incomingSettings.hotkeySound : 'click';
+              showLiveStatWidget = incomingSettings.showLiveStatWidget === undefined ? true : incomingSettings.showLiveStatWidget === true;
+              showSessionGoalWidget = incomingSettings.showSessionGoalWidget === undefined ? true : incomingSettings.showSessionGoalWidget === true;
+              showRareTrackerWidgets = incomingSettings.showRareTrackerWidgets === undefined ? true : incomingSettings.showRareTrackerWidgets === true;
               saveSettings();
             }
             if(incomingCustomDefaults){ saveCustomDefaults({ species: incomingCustomDefaults.species||[], maps: incomingCustomDefaults.maps||[] }); }
-            rareGoals = incomingRareGoals || {};
+            rareGoals = {};
+            if(incomingRareGoals){
+              Object.entries(incomingRareGoals).forEach(([key, val]) => { rareGoals[key] = normalizeRareGoalsBucket(val); });
+            }
             saveRareGoals();
             markDirty();
             await saveNow();
             renderCurrentPanel(); renderStats(); renderChart(); renderLiveStat();
+            syncLinkedTogglesToActive();
             setImportMsg('Backup imported (overwrite).', 'success');
           }
         );
@@ -4408,14 +4960,52 @@
     if(!g) return null;
     return `${grindSpeciesLabel(g)}|${g.platform || 'PC'}`;
   }
+  function genRareId(){ return 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  // Normalizes one key's stored value into the current { entries, allCelebrated } shape.
+  // Back-compat: an earlier build stored a plain array of entries per key, each with a
+  // required goal + metShown flag (per-fur celebration popup, since removed). Any old
+  // entry still loads fine — its goal carries over as an optional goal, same as new ones.
+  function normalizeRareGoalsBucket(val){
+    let entries = [], allCelebrated = false;
+    if(Array.isArray(val)){
+      entries = val;
+    } else if(val && typeof val === 'object'){
+      entries = Array.isArray(val.entries) ? val.entries : [];
+      allCelebrated = val.allCelebrated === true;
+    }
+    const normalized = entries.map(e => ({
+      id: (e && e.id) || genRareId(),
+      name: String((e && e.name) || '').trim() || 'Unnamed',
+      count: parseInt(e && e.count, 10) || 0,
+      goal: (e && typeof e.goal === 'number' && e.goal > 0) ? e.goal : null,
+      collapsed: !!(e && e.collapsed)
+    }));
+    return { entries: normalized, allCelebrated };
+  }
   function loadRareGoals(){
+    rareGoals = {};
     try{
       const raw = JSON.parse(localStorage.getItem(RARE_GOALS_KEY) || '{}');
-      rareGoals = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+      if(raw && typeof raw === 'object' && !Array.isArray(raw)){
+        Object.entries(raw).forEach(([key, val]) => { rareGoals[key] = normalizeRareGoalsBucket(val); });
+      }
     }catch(e){ rareGoals = {}; }
   }
   function saveRareGoals(){
     try{ localStorage.setItem(RARE_GOALS_KEY, JSON.stringify(rareGoals)); }catch(e){}
+  }
+  // Returns { entries, allCelebrated } for the active grind's species+platform, creating
+  // an empty bucket on first access. Returns null if there's no active grind.
+  function currentRareGoalsBucket(){
+    const g = getActiveGrind();
+    if(!g) return null;
+    const key = rareGoalsKeyFor(g);
+    if(!rareGoals[key]) rareGoals[key] = { entries: [], allCelebrated: false };
+    return rareGoals[key];
+  }
+  function currentRareGoalsEntries(){
+    const bucket = currentRareGoalsBucket();
+    return bucket ? bucket.entries : null;
   }
   function formatKey(key){
     if(!key) return '';
@@ -4665,11 +5255,7 @@
     loadKeybinds();
     loadRareGoals();
     loadSettings();
-    // Belt-and-suspenders: the inline snippet in index.html already applies this before
-    // first paint (to avoid a flash of the wrong theme), but re-apply here too so the
-    // state is always correct even if that snippet is ever removed or fails.
-    const appEl = document.querySelector('.app');
-    if(appEl) appEl.classList.toggle('theme-light', themeLight);
+    loadWidgetLayout();
     buildShell();
     renderLiveStat();
     setSyncStatus(storageAvailable ? 'saved' : 'unavailable');

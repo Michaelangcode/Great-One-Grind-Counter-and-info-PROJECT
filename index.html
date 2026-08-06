@@ -64,16 +64,6 @@
       </div>
     </div>
     <div class="app">
-  <script>
-    // Applies the saved theme choice immediately, before this div gets any CSS/paint,
-    // so light-mode users don't see a flash of dark mode on every reload.
-    (function(){
-      try {
-        var s = JSON.parse(localStorage.getItem('goGrind:settings') || '{}');
-        if (s.themeLight === true) document.currentScript.parentElement.classList.add('theme-light');
-      } catch (e) {}
-    })();
-  </script>
   <div class="wrap" id="appRoot">
     <div class="loading-note">Loading your grind log…</div>
   </div>
@@ -278,44 +268,36 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- Rare Fur Goals: management panel -->
+<!-- Rare Fur Trackers: create/edit panel -->
 <div id="rareGoalsModal" class="modal hidden">
-  <div class="modal-box" style="max-width:340px; text-align:center;">
-    <h3 style="font-family:'Merriweather',serif;font-weight:700;font-size:15px;margin:0 0 8px;color:var(--text);">Rare Fur Goals</h3>
+  <div class="modal-box" style="max-width:360px; text-align:center;">
+    <h3 style="font-family:'Merriweather',serif;font-weight:700;font-size:15px;margin:0 0 8px;color:var(--text);">Create / Edit Rare Fur Tracker(s)</h3>
     <p style="font-size:10.5px;color:var(--muted);margin:0 0 14px;line-height:1.5;">This tracker is independent &mdash; updating these counters does not affect the &ldquo;Rares&rdquo; counter, nor does it affect the All Grinds Summary. Use the &ldquo;Rares&rdquo; counter in Current Grind to log data there.</p>
 
-    <div id="rgAddNameStep">
-      <input type="text" id="rgNameInput" placeholder="Name of the rare fur" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
-      <button id="rgNameConfirmBtn" class="confirm-go" style="width:100%;">Confirm Name</button>
+    <div class="trophy-form-fields" style="margin-bottom:10px;">
+      <label>Rare Fur Name<input type="text" id="rgNameInput" placeholder="e.g. Albino, Melanistic, Piebald…"></label>
     </div>
-
-    <div id="rgAddGoalStep" class="hidden">
-      <p id="rgGoalPrompt" style="font-size:12.5px;color:var(--text);margin:0 0 8px;"></p>
-      <input type="number" id="rgGoalInput" placeholder="Goal amount" min="1" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
-      <div class="modal-actions" style="justify-content:center;">
-        <button id="rgGoalCancelBtn">Cancel</button>
-        <button id="rgGoalConfirmBtn" class="confirm-go">Confirm Goal</button>
-      </div>
+    <div class="modal-actions" style="justify-content:center;">
+      <button id="rgNameConfirmBtn" class="confirm-go">+ Add Tracker</button>
     </div>
 
     <div id="rgList" class="rg-list"></div>
 
-    <div class="modal-actions">
-      <button id="rgRevertBtn" class="confirm-danger">Revert Changes</button>
+    <div class="modal-actions" style="margin-top:14px;">
       <button id="rgCloseBtn">Close</button>
     </div>
   </div>
 </div>
 
-<!-- Rare Fur Goals: goal met modal -->
+<!-- Rare Fur Trackers: all-goals-complete celebration -->
 <div id="rgGoalMetModal" class="modal hidden">
   <div class="modal-box" style="max-width:280px; text-align:center;">
     <p style="font-size:22px;margin:0 0 6px;">🏆</p>
-    <p style="font-family:'Merriweather',serif;font-weight:700;font-size:15px;margin:0 0 6px;color:var(--text);">Goal met!</p>
+    <p style="font-family:'Merriweather',serif;font-weight:700;font-size:15px;margin:0 0 6px;color:var(--text);">All Goals Met!</p>
     <p id="rgMetText" style="font-size:12px;color:var(--muted);margin:0 0 18px;"></p>
     <div class="modal-actions">
-      <button id="rgMetNo">No thanks</button>
-      <button id="rgMetYes" class="confirm-go">Set New Goal</button>
+      <button id="rgMetOk">Awesome!</button>
+      <button id="rgMetSetNew" class="confirm-go">Set New Goals</button>
     </div>
   </div>
 </div>
